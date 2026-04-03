@@ -1,0 +1,50 @@
+{
+  "name": "@telegraphic-dev/openclaw-gateway-client",
+  "version": "0.1.0",
+  "description": "TypeScript WebSocket client for the OpenClaw Gateway with device auth, pairing recovery, RPC, chat, sessions, and event streaming.",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts",
+    "test": "node --test",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "openclaw",
+    "gateway",
+    "websocket",
+    "rpc",
+    "device-auth",
+    "pairing"
+  ],
+  "author": "",
+  "license": "MIT",
+  "type": "module",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/telegraphic-dev/openclaw-gateway-client.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.2",
+    "@types/ws": "^8.18.1"
+  }
+}
