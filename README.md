@@ -81,9 +81,35 @@ This lets other projects:
 
 ## Local inspector against a real Gateway
 
-Yes — I added a local inspector CLI specifically for this.
+There are now two inspector modes:
 
-Examples:
+### 1) Web inspector UI
+
+MCP-inspector-style local app for interactive debugging.
+
+```bash
+npm run inspector
+```
+
+Then open:
+
+```text
+http://127.0.0.1:6274
+```
+
+Current features:
+- connect/disconnect to a real Gateway
+- invoke arbitrary methods with JSON params
+- live event stream
+- raw traffic log
+- saved connection fields in localStorage
+- quick presets for common methods
+
+This uses a **local proxy server** (`inspector/server/index.mjs`) so the browser UI does not need to implement Gateway auth/device-token handling directly.
+
+### 2) CLI inspector
+
+Useful for scripts and quick probes.
 
 ```bash
 # one-off call
@@ -110,11 +136,12 @@ Published binary name:
 openclaw-gateway-inspector call health
 ```
 
-What it gives us:
+What this gives us:
 - real handshake testing against an actual Gateway
 - event stream inspection
 - ad hoc RPC invocation
 - reproducible debugging for pairing/auth/scope problems
+- a foundation for a richer MCPJam-style inspector app
 
 ## CI / publish
 

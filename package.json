@@ -8,6 +8,7 @@
     "test": "npm run build && node --test",
     "typecheck": "tsc --noEmit",
     "inspect": "npm run build && node scripts/inspector.mjs",
+    "inspector": "npm run build && node inspector/server/index.mjs",
     "clean": "rm -rf dist"
   },
   "keywords": [
@@ -32,6 +33,7 @@
   "files": [
     "dist",
     "scripts",
+    "inspector",
     "README.md",
     "LICENSE"
   ],

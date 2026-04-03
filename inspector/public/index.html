@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OpenClaw Gateway Inspector</title>
+  <style>
+    :root { color-scheme: dark; --bg:#0b1020; --panel:#121933; --muted:#8ea0c7; --text:#ecf2ff; --accent:#6ea8fe; --border:#243055; --good:#2fbf71; --warn:#ffb020; --bad:#ff6b6b; }
+    *{box-sizing:border-box} body{margin:0;font-family:Inter,ui-sans-serif,system-ui,sans-serif;background:var(--bg);color:var(--text)}
+    .app{display:grid;grid-template-columns:360px 1fr;min-height:100vh}.sidebar,.main{padding:16px}.sidebar{border-right:1px solid var(--border);background:#0f1530}.panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:16px}.panel h2{margin:0 0 12px;font-size:16px}.muted{color:var(--muted)}
+    label{display:block;font-size:12px;color:var(--muted);margin:10px 0 6px} input,textarea,select,button{width:100%;border-radius:10px;border:1px solid var(--border);background:#0d1430;color:var(--text);padding:10px 12px;font:inherit}
+    textarea{min-height:120px;resize:vertical}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.actions{display:flex;gap:8px;flex-wrap:wrap}.actions button{width:auto}.btn{cursor:pointer}.btn.primary{background:var(--accent);color:#081120;border-color:transparent;font-weight:600}.btn.ghost{background:transparent}.btn.good{background:var(--good);color:#07150d;border-color:transparent}.btn.warn{background:var(--warn);color:#1b1200;border-color:transparent}
+    .tabs{display:flex;gap:8px;margin-bottom:12px}.tab{padding:8px 12px;border:1px solid var(--border);border-radius:999px;cursor:pointer}.tab.active{background:var(--accent);color:#081120;border-color:transparent}
+    .log{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;white-space:pre-wrap;word-break:break-word;background:#0a1128;border:1px solid var(--border);border-radius:10px;padding:10px;max-height:70vh;overflow:auto}
+    .list{display:flex;flex-direction:column;gap:10px}.entry{border:1px solid var(--border);border-radius:10px;padding:10px;background:#0d1430}.entry .meta{font-size:12px;color:var(--muted);margin-bottom:6px}
+    .pill{display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid var(--border);font-size:12px;margin-right:6px}.ok{color:var(--good)}.err{color:var(--bad)}
+    @media (max-width: 980px){.app{grid-template-columns:1fr}.sidebar{border-right:none;border-bottom:1px solid var(--border)}}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="panel">
+        <h2>Connection</h2>
+        <label>Gateway URL</label>
+        <input id="url" placeholder="ws://127.0.0.1:18789" />
+        <label>Gateway Token</label>
+        <input id="token" placeholder="optional shared token" />
+        <label>Role</label>
+        <input id="role" value="operator" />
+        <label>Scopes (comma separated)</label>
+        <input id="scopes" value="operator.admin,operator.read,operator.write,operator.approvals,operator.pairing" />
+        <label>Client ID</label>
+        <input id="clientId" value="openclaw-gateway-inspector" />
+        <div class="actions" style="margin-top:12px">
+          <button id="connectBtn" class="btn primary">Connect</button>
+          <button id="disconnectBtn" class="btn ghost">Disconnect</button>
+        </div>
+        <div id="status" class="muted" style="margin-top:10px">Disconnected</div>
+      </div>
+
+      <div class="panel">
+        <h2>Invoke Method</h2>
+        <label>Method</label>
+        <input id="method" value="health" />
+        <label>Params (JSON)</label>
+        <textarea id="params">{}</textarea>
+        <div class="actions" style="margin-top:12px">
+          <button id="callBtn" class="btn good">Call</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Helpers</h2>
+        <div class="actions">
+          <button class="btn ghost preset" data-method="health" data-params="{}">health</button>
+          <button class="btn ghost preset" data-method="status" data-params="{}">status</button>
+          <button class="btn ghost preset" data-method="sessions.list" data-params='{"limit":10}'>sessions.list</button>
+          <button class="btn ghost preset" data-method="device.pair.list" data-params="{}">device.pair.list</button>
+          <button class="btn ghost preset" data-method="gateway.identity.get" data-params="{}">gateway.identity.get</button>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="tabs">
+        <div class="tab active" data-tab="responses">Responses</div>
+        <div class="tab" data-tab="events">Events</div>
+        <div class="tab" data-tab="traffic">Traffic</div>
+      </div>
+      <section id="responses" class="tab-panel">
+        <div id="responsesList" class="list"></div>
+      </section>
+      <section id="events" class="tab-panel" hidden>
+        <div id="eventsList" class="list"></div>
+      </section>
+      <section id="traffic" class="tab-panel" hidden>
+        <div id="trafficLog" class="log"></div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const state = { ws: null, connected: false };
+    const statusEl = $('status');
+    const responsesList = $('responsesList');
+    const eventsList = $('eventsList');
+    const trafficLog = $('trafficLog');
+
+    function setStatus(text, kind='') {
+      statusEl.textContent = text;
+      statusEl.className = kind ? kind : 'muted';
+    }
+
+    function addEntry(container, title, payload, meta = '') {
+      const div = document.createElement('div');
+      div.className = 'entry';
+      div.innerHTML = `<div class="meta">${meta}</div><div style="font-weight:600;margin-bottom:8px">${title}</div><div class="log">${escapeHtml(JSON.stringify(payload, null, 2))}</div>`;
+      container.prepend(div);
+    }
+
+    function appendTraffic(label, payload) {
+      trafficLog.textContent = `[${new Date().toISOString()}] ${label}\n${JSON.stringify(payload, null, 2)}\n\n` + trafficLog.textContent;
+    }
+
+    function escapeHtml(s) {
+      return s.replace(/[&<>]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+    }
+
+    function connect() {
+      if (state.ws) state.ws.close();
+      const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+      const ws = new WebSocket(`${proto}://${location.host}/ws`);
+      state.ws = ws;
+      ws.onopen = () => {
+        appendTraffic('proxy-open', { ok: true });
+        ws.send(JSON.stringify({ type: 'connect', payload: {
+          url: $('url').value,
+          token: $('token').value || undefined,
+          role: $('role').value || 'operator',
+          scopes: $('scopes').value.split(',').map(s => s.trim()).filter(Boolean),
+          client: { id: $('clientId').value || 'openclaw-gateway-inspector', version: '0.1.0', platform: 'node', mode: 'backend' },
+        }}));
+      };
+      ws.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        appendTraffic('in', msg);
+        if (msg.type === 'connected') {
+          state.connected = true;
+          setStatus(`Connected to ${msg.payload?.url ?? 'gateway'}`, 'ok');
+        } else if (msg.type === 'disconnected') {
+          state.connected = false;
+          setStatus('Disconnected', 'muted');
+        } else if (msg.type === 'result') {
+          addEntry(responsesList, msg.payload.method, msg.payload.result, `${msg.payload.ok ? 'OK' : 'ERROR'} · ${new Date().toLocaleTimeString()}`);
+        } else if (msg.type === 'event') {
+          addEntry(eventsList, msg.payload.event, msg.payload.payload, new Date().toLocaleTimeString());
+        } else if (msg.type === 'error') {
+          addEntry(responsesList, 'error', msg.payload, `ERROR · ${new Date().toLocaleTimeString()}`);
+          setStatus(msg.payload.message || 'Error', 'err');
+        }
+      };
+      ws.onclose = () => {
+        state.connected = false;
+        setStatus('Disconnected', 'muted');
+      };
+    }
+
+    $('connectBtn').onclick = connect;
+    $('disconnectBtn').onclick = () => state.ws?.close();
+    $('callBtn').onclick = () => {
+      if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return setStatus('Connect first', 'err');
+      let params;
+      try { params = JSON.parse($('params').value || '{}'); } catch (e) { return setStatus('Invalid JSON params', 'err'); }
+      const payload = { type: 'call', payload: { method: $('method').value.trim(), params } };
+      appendTraffic('out', payload);
+      state.ws.send(JSON.stringify(payload));
+    };
+
+    document.querySelectorAll('.preset').forEach((btn) => {
+      btn.onclick = () => { $('method').value = btn.dataset.method; $('params').value = btn.dataset.params; };
+    });
+
+    document.querySelectorAll('.tab').forEach((tab) => {
+      tab.onclick = () => {
+        document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
+        document.querySelectorAll('.tab-panel').forEach((p) => p.hidden = true);
+        tab.classList.add('active');
+        document.getElementById(tab.dataset.tab).hidden = false;
+      };
+    });
+
+    $('url').value = localStorage.getItem('ogw.url') || 'ws://127.0.0.1:18789';
+    $('token').value = localStorage.getItem('ogw.token') || '';
+    ['url','token','role','scopes','clientId'].forEach((id) => $(id).addEventListener('input', () => localStorage.setItem(`ogw.${id}`, $(id).value)));
+  </script>
+</body>
+</html>
