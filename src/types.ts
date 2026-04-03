@@ -158,12 +158,21 @@ export type SessionsListResult = {
 export type SessionMessagePart = {
   text?: string;
   type?: string;
+  content?: string | SessionMessagePart[];
+  parts?: SessionMessagePart[];
+  items?: SessionMessagePart[];
+  children?: SessionMessagePart[];
+  value?: string;
 };
 
 export type SessionMessage = {
+  seq?: number;
   role?: 'user' | 'assistant' | 'system' | string;
+  text?: string;
+  runId?: string;
   content?: string | SessionMessagePart[];
   message?: {
+    runId?: string;
     content?: SessionMessagePart[];
   };
 };
@@ -203,6 +212,7 @@ export type SessionsDeleteResult = {
 export type SessionsCreateParams = {
   key: string;
   label?: string;
+  agentId?: string;
 };
 
 export type SessionsCreateResult = {
