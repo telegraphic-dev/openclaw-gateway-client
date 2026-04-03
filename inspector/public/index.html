@@ -873,13 +873,15 @@
           const current = readParamsTextarea();
           const variant = variants[variantIndex] || variants[0];
           const allowedKeys = new Set(Object.keys(variant.properties || {}));
-          const next = {};
-          if (current && typeof current === 'object' && !Array.isArray(current)) {
-            Object.keys(current).forEach((key) => {
-              if (allowedKeys.has(key)) next[key] = current[key];
+          const currentSubtree = path.length ? path.reduce((acc, key) => (acc && typeof acc === 'object' ? acc[key] : undefined), current) : current;
+          const nextSubtree = {};
+          if (currentSubtree && typeof currentSubtree === 'object' && !Array.isArray(currentSubtree)) {
+            Object.keys(currentSubtree).forEach((key) => {
+              if (allowedKeys.has(key)) nextSubtree[key] = currentSubtree[key];
             });
           }
-          syncParamsTextarea(next);
+          const nextRoot = path.length ? setByPath(current && typeof current === 'object' ? current : {}, path, nextSubtree) : nextSubtree;
+          syncParamsTextarea(nextRoot);
           renderVariant();
         };
         container.appendChild(variantSelect);
@@ -968,6 +970,10 @@
       return container;
     }
 
+    function getActiveMethodName() {
+      return methodSelect.value === '__custom__' ? customMethodEl.value.trim() : methodSelect.value.trim();
+    }
+
     function renderSchemaForm(method, params) {
       schemaForm.innerHTML = '';
       const def = METHOD_DEFS[method];
@@ -994,10 +1000,28 @@
       state.selectedMethod = effectiveMethod;
       methodSelect.value = isKnown ? effectiveMethod : '__custom__';
       customMethodEl.value = isKnown ? '' : effectiveMethod;
-      const nextParams = options.keepCurrent ? (readParamsTextarea() ?? getDefaultParams(effectiveMethod)) : getDefaultParams(effectiveMethod);
-      syncParamsTextarea(nextParams);
-      renderMethodMeta(effectiveMethod);
-      renderSchemaForm(effectiveMethod, nextParams);
+      let nextParams;
+      if (options.keepCurrent) {
+        const currentParams = readParamsTextarea();
+        nextParams = currentParams == null ? paramsEl.value : currentParams;
+      } else {
+        nextParams = getDefaultParams(effectiveMethod);
+      }
+      if (typeof nextParams === 'string') {
+        state.suppressParamsUpdate = true;
+        paramsEl.value = nextParams;
+        state.suppressParamsUpdate = false;
+        renderMethodMeta(effectiveMethod);
+        schemaForm.innerHTML = '';
+        const warning = document.createElement('div');
+        warning.className = 'small';
+        warning.textContent = 'Raw JSON is currently invalid. Fix it below to re-enable the schema form.';
+        schemaForm.appendChild(warning);
+      } else {
+        syncParamsTextarea(nextParams);
+        renderMethodMeta(effectiveMethod);
+        renderSchemaForm(effectiveMethod, nextParams);
+      }
       localStorage.setItem('ogw.method', effectiveMethod);
     }
 
@@ -1071,8 +1095,7 @@
     };
 
     $('resetBtn').onclick = () => {
-      const method = methodSelect.value === '__custom__' ? customMethodEl.value.trim() : methodSelect.value;
-      selectMethod(method);
+      selectMethod(getActiveMethodName());
     };
 
     methodSelect.onchange = () => {
@@ -1090,8 +1113,15 @@
     paramsEl.addEventListener('input', () => {
       if (state.suppressParamsUpdate) return;
       const parsed = readParamsTextarea();
-      if (parsed == null) return;
-      renderSchemaForm(methodSelect.value, parsed);
+      if (parsed == null) {
+        schemaForm.innerHTML = '';
+        const warning = document.createElement('div');
+        warning.className = 'small';
+        warning.textContent = 'Raw JSON is currently invalid. Fix it below to re-enable the schema form.';
+        schemaForm.appendChild(warning);
+        return;
+      }
+      renderSchemaForm(getActiveMethodName(), parsed);
     });
 
     roleSelect.onchange = () => updateScopesForRole(roleSelect.value);
