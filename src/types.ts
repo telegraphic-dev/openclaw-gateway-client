@@ -155,9 +155,27 @@ export type SessionsListResult = {
   sessions?: SessionEntry[];
 };
 
+export type SessionMessagePart = {
+  text?: string;
+  type?: string;
+};
+
+export type SessionMessage = {
+  role?: 'user' | 'assistant' | 'system' | string;
+  content?: string | SessionMessagePart[];
+  message?: {
+    content?: SessionMessagePart[];
+  };
+};
+
 export type SessionsGetParams = {
   key: string;
   limit?: number;
+};
+
+export type SessionsGetResult = {
+  key?: string;
+  messages?: SessionMessage[];
 };
 
 export type SessionsPatchParams = {
@@ -185,6 +203,36 @@ export type SessionsDeleteResult = {
 export type SessionsCreateParams = {
   key: string;
   label?: string;
+};
+
+export type SessionsCreateResult = {
+  key?: string;
+  url?: string;
+  deepLink?: string;
+  sessionUrl?: string;
+};
+
+export type SessionsSendParams = {
+  key: string;
+  message: string;
+  idempotencyKey?: string;
+};
+
+export type SessionsSendResult = {
+  runId?: string;
+  status?: 'accepted' | 'started' | 'in_flight' | 'ok' | string;
+  messageSeq?: number;
+};
+
+export type AgentWaitParams = {
+  runId: string;
+  timeoutMs?: number;
+};
+
+export type AgentWaitResult = {
+  runId?: string;
+  status?: 'ok' | 'error' | 'timeout' | string;
+  error?: string;
 };
 
 export type DevicePairRequest = {
@@ -281,10 +329,12 @@ export type MethodMap = {
   'chat.abort': { params: ChatAbortParams; result: Record<string, unknown> };
   'chat.inject': { params: { sessionKey: string; message: string }; result: Record<string, unknown> };
   'sessions.list': { params: SessionsListParams; result: SessionsListResult };
-  'sessions.get': { params: SessionsGetParams; result: Record<string, unknown> };
-  'sessions.create': { params: SessionsCreateParams; result: Record<string, unknown> };
+  'sessions.get': { params: SessionsGetParams; result: SessionsGetResult };
+  'sessions.create': { params: SessionsCreateParams; result: SessionsCreateResult };
+  'sessions.send': { params: SessionsSendParams; result: SessionsSendResult };
   'sessions.patch': { params: SessionsPatchParams; result: Record<string, unknown> };
   'sessions.delete': { params: SessionsDeleteParams; result: SessionsDeleteResult };
+  'agent.wait': { params: AgentWaitParams; result: AgentWaitResult };
   'sessions.reset': { params: { key: string }; result: Record<string, unknown> };
   'sessions.compact': { params: { key: string }; result: Record<string, unknown> };
   'sessions.usage': { params: Record<string, unknown>; result: Record<string, unknown> };

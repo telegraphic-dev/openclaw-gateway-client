@@ -40,6 +40,8 @@ import {
 export type {
   AgentsListResult,
   AgentIdentityGetResult,
+  AgentWaitParams,
+  AgentWaitResult,
   ChatAbortParams,
   ChatHistoryParams,
   ChatHistoryResult,
@@ -65,12 +67,16 @@ export type {
   ParamsFor,
   ResultFor,
   SessionsCreateParams,
+  SessionsCreateResult,
   SessionsDeleteParams,
   SessionsDeleteResult,
   SessionsGetParams,
+  SessionsGetResult,
   SessionsListParams,
   SessionsListResult,
   SessionsPatchParams,
+  SessionsSendParams,
+  SessionsSendResult,
   SkillsStatusResult,
   StatusResult,
   SystemPresenceResult,
@@ -80,6 +86,8 @@ export type {
 import type {
   AgentsListResult,
   AgentIdentityGetResult,
+  AgentWaitParams,
+  AgentWaitResult,
   ChatAbortParams,
   ChatHistoryParams,
   ChatHistoryResult,
@@ -105,12 +113,16 @@ import type {
   ParamsFor,
   ResultFor,
   SessionsCreateParams,
+  SessionsCreateResult,
   SessionsDeleteParams,
   SessionsDeleteResult,
   SessionsGetParams,
+  SessionsGetResult,
   SessionsListParams,
   SessionsListResult,
   SessionsPatchParams,
+  SessionsSendParams,
+  SessionsSendResult,
   SkillsStatusResult,
   StatusResult,
   SystemPresenceResult,
@@ -467,12 +479,19 @@ export class OpenClawGatewayClient {
     return this.request('sessions.list', params);
   }
 
-  async createSession(params: SessionsCreateParams): Promise<Record<string, unknown>> {
+  async createSession(params: SessionsCreateParams): Promise<SessionsCreateResult> {
     return this.request('sessions.create', params);
   }
 
-  async getSession(params: SessionsGetParams): Promise<Record<string, unknown>> {
+  async getSession(params: SessionsGetParams): Promise<SessionsGetResult> {
     return this.request('sessions.get', params);
+  }
+
+  async sendSessionMessage(params: SessionsSendParams): Promise<SessionsSendResult> {
+    return this.request('sessions.send', {
+      idempotencyKey: randomUUID(),
+      ...params,
+    });
   }
 
   async patchSession(params: SessionsPatchParams): Promise<Record<string, unknown>> {
@@ -481,6 +500,10 @@ export class OpenClawGatewayClient {
 
   async deleteSession(params: SessionsDeleteParams): Promise<SessionsDeleteResult> {
     return this.request('sessions.delete', params);
+  }
+
+  async waitForAgentRun(params: AgentWaitParams): Promise<AgentWaitResult> {
+    return this.request('agent.wait', params);
   }
 
   async resetSession(key: string): Promise<Record<string, unknown>> {
