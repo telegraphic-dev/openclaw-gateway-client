@@ -6,6 +6,7 @@
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts",
     "test": "node --test",
+    "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist"
   },
   "keywords": [

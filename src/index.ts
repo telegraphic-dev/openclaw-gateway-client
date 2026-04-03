@@ -3,6 +3,63 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import WebSocket from 'ws';
+import {
+  ADMIN_SCOPE,
+  APPROVALS_SCOPE,
+  METHOD_SCOPE_BY_NAME,
+  METHOD_SCOPE_GROUPS,
+  NODE_ROLE_METHODS,
+  OPERATOR_SCOPES,
+  PAIRING_SCOPE,
+  READ_SCOPE,
+  WRITE_SCOPE,
+  authorizeOperatorScopesForMethod,
+  isAdminOnlyMethod,
+  isNodeRoleMethod,
+  resolveLeastPrivilegeOperatorScopesForMethod,
+  resolveRequiredOperatorScopeForMethod,
+  resolveScopedMethod,
+} from './generated/methods.js';
+import type {
+  AgentsListResult,
+  AgentIdentityGetResult,
+  ChatAbortParams,
+  ChatHistoryParams,
+  ChatHistoryResult,
+  ChatSendAck,
+  ChatSendParams,
+  ChannelsStatusResult,
+  ConfigGetResult,
+  ConfigSchemaResult,
+  CronListResult,
+  CronRunsResult,
+  CronStatusResult,
+  DevicePairListResult,
+  DeviceTokenRotateParams,
+  DeviceTokenRotateResult,
+  GatewayEventName,
+  GatewayHelloOk,
+  GatewayIdentityResult,
+  HealthResult,
+  KnownMethod,
+  LogsTailResult,
+  ModelsListResult,
+  NodeListResult,
+  ParamsFor,
+  ResultFor,
+  SessionsCreateParams,
+  SessionsDeleteParams,
+  SessionsDeleteResult,
+  SessionsGetParams,
+  SessionsListParams,
+  SessionsListResult,
+  SessionsPatchParams,
+  SkillsStatusResult,
+  StatusResult,
+  SystemPresenceResult,
+  ToolsCatalogResult,
+  ToolsEffectiveResult,
+} from './types.js';
 
 export const PROTOCOL_VERSION = 3;
 export const DEFAULT_CONNECT_TIMEOUT_MS = 10_000;
@@ -43,13 +100,23 @@ export type ClientIdentity = {
   mode: string;
 };
 
-export type HelloOk = {
+export type HelloOk = GatewayHelloOk;
+
+export type HelloOk_Legacy = {
   auth?: {
     deviceToken?: string;
     role?: string;
     scopes?: string[];
   };
 };
+
+export const ROLE_SCOPE_MAP = {
+  operator: [...OPERATOR_SCOPES],
+  'operator.readonly': [READ_SCOPE],
+  'operator.writeonly': [WRITE_SCOPE],
+  pairing: [PAIRING_SCOPE],
+  approvals: [APPROVALS_SCOPE],
+} as const;
 
 export type RpcRequest = {
   type: 'req';
@@ -254,6 +321,8 @@ export class OpenClawGatewayClient {
     return this.closePromise;
   }
 
+  async request<M extends KnownMethod>(method: M, params: ParamsFor<M>): Promise<ResultFor<M>>;
+  async request<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T>;
   async request<T = unknown>(method: string, params: Record<string, unknown> = {}): Promise<T> {
     if (!this.connected || !this.ws) {
       await this.connect();
@@ -277,67 +346,155 @@ export class OpenClawGatewayClient {
     return result;
   }
 
-  async health<T = unknown>(): Promise<T> {
-    return this.request<T>('health', {});
+  async health(): Promise<HealthResult> {
+    return this.request('health', {});
   }
 
-  async gatewayIdentityGet<T = unknown>(): Promise<T> {
-    return this.request<T>('gateway.identity.get', {});
+  async status(): Promise<StatusResult> {
+    return this.request('status', {});
   }
 
-  async listSessions<T = unknown>(params: { limit?: number; activeMinutes?: number; includeGlobal?: boolean; includeUnknown?: boolean } = {}): Promise<T> {
-    return this.request<T>('sessions.list', params);
+  async modelsList(): Promise<ModelsListResult> {
+    return this.request('models.list', {});
   }
 
-  async createSession<T = unknown>(params: { key: string; label?: string }): Promise<T> {
-    return this.request<T>('sessions.create', params);
+  async channelsStatus(params: Record<string, unknown> = {}): Promise<ChannelsStatusResult> {
+    return this.request('channels.status', params);
   }
 
-  async getSession<T = unknown>(params: { key: string; limit?: number }): Promise<T> {
-    return this.request<T>('sessions.get', params);
+  async gatewayIdentityGet(): Promise<GatewayIdentityResult> {
+    return this.request('gateway.identity.get', {});
   }
 
-  async patchSession<T = unknown>(params: { key: string; model?: string; thinkingLevel?: string; fastMode?: boolean; verboseLevel?: string; reasoningLevel?: string }): Promise<T> {
-    return this.request<T>('sessions.patch', params);
+  async systemPresence(): Promise<SystemPresenceResult> {
+    return this.request('system-presence', {});
   }
 
-  async deleteSession<T = unknown>(params: { key: string; deleteTranscript?: boolean; emitLifecycleHooks?: boolean }): Promise<T> {
-    return this.request<T>('sessions.delete', params);
+  async nodeList(): Promise<NodeListResult> {
+    return this.request('node.list', {});
   }
 
-  async chatHistory<T = unknown>(params: { sessionKey: string; limit?: number }): Promise<T> {
-    return this.request<T>('chat.history', params);
+  async agentsList(): Promise<AgentsListResult> {
+    return this.request('agents.list', {});
   }
 
-  async chatSend<T = unknown>(params: { sessionKey: string; message: string; deliver?: boolean; idempotencyKey?: string; attachments?: unknown[] }): Promise<T> {
-    return this.request<T>('chat.send', { idempotencyKey: randomUUID(), deliver: false, ...params });
+  async agentIdentityGet(params: { agentId?: string; sessionKey?: string }): Promise<AgentIdentityGetResult> {
+    return this.request('agent.identity.get', params);
   }
 
-  async chatAbort<T = unknown>(params: { sessionKey: string; runId?: string }): Promise<T> {
-    return this.request<T>('chat.abort', params);
+  async toolsCatalog(params: { agentId: string; includePlugins?: boolean }): Promise<ToolsCatalogResult> {
+    return this.request('tools.catalog', params);
   }
 
-  async devicePairList<T = unknown>(): Promise<T> {
-    return this.request<T>('device.pair.list', {});
+  async toolsEffective(params: { agentId: string; sessionKey: string }): Promise<ToolsEffectiveResult> {
+    return this.request('tools.effective', params);
   }
 
-  async devicePairApprove<T = unknown>(requestId: string): Promise<T> {
-    return this.request<T>('device.pair.approve', { requestId });
+  async skillsStatus(params: { agentId?: string } | Record<string, never> = {}): Promise<SkillsStatusResult> {
+    return this.request('skills.status', params);
   }
 
-  async devicePairReject<T = unknown>(requestId: string): Promise<T> {
-    return this.request<T>('device.pair.reject', { requestId });
+  async logsTail(params: { cursor?: number; limit?: number; maxBytes?: number } = {}): Promise<LogsTailResult> {
+    return this.request('logs.tail', params);
   }
 
-  async deviceTokenRotate<T = unknown>(params: { deviceId: string; role: string; scopes?: string[] }): Promise<T> {
-    return this.request<T>('device.token.rotate', params);
+  async configGet(): Promise<ConfigGetResult> {
+    return this.request('config.get', {});
   }
 
-  async deviceTokenRevoke<T = unknown>(params: { deviceId: string; role: string }): Promise<T> {
-    return this.request<T>('device.token.revoke', params);
+  async configSchema(): Promise<ConfigSchemaResult> {
+    return this.request('config.schema', {} as never);
   }
 
-  on(eventName: string, handler: (event: GatewayEvent) => void): () => void {
+  async listSessions(params: SessionsListParams = {}): Promise<SessionsListResult> {
+    return this.request('sessions.list', params);
+  }
+
+  async createSession(params: SessionsCreateParams): Promise<Record<string, unknown>> {
+    return this.request('sessions.create', params);
+  }
+
+  async getSession(params: SessionsGetParams): Promise<Record<string, unknown>> {
+    return this.request('sessions.get', params);
+  }
+
+  async patchSession(params: SessionsPatchParams): Promise<Record<string, unknown>> {
+    return this.request('sessions.patch', params);
+  }
+
+  async deleteSession(params: SessionsDeleteParams): Promise<SessionsDeleteResult> {
+    return this.request('sessions.delete', params);
+  }
+
+  async resetSession(key: string): Promise<Record<string, unknown>> {
+    return this.request('sessions.reset', { key });
+  }
+
+  async compactSession(key: string): Promise<Record<string, unknown>> {
+    return this.request('sessions.compact', { key });
+  }
+
+  async chatHistory(params: ChatHistoryParams): Promise<ChatHistoryResult> {
+    return this.request('chat.history', params);
+  }
+
+  async chatSend(params: ChatSendParams): Promise<ChatSendAck> {
+    return this.request('chat.send', { idempotencyKey: randomUUID(), deliver: false, ...params });
+  }
+
+  async chatAbort(params: ChatAbortParams): Promise<Record<string, unknown>> {
+    return this.request('chat.abort', params);
+  }
+
+  async chatInject(sessionKey: string, message: string): Promise<Record<string, unknown>> {
+    return this.request('chat.inject', { sessionKey, message });
+  }
+
+  async devicePairList(): Promise<DevicePairListResult> {
+    return this.request('device.pair.list', {});
+  }
+
+  async devicePairApprove(requestId: string): Promise<Record<string, unknown>> {
+    return this.request('device.pair.approve', { requestId });
+  }
+
+  async devicePairReject(requestId: string): Promise<Record<string, unknown>> {
+    return this.request('device.pair.reject', { requestId });
+  }
+
+  async deviceTokenRotate(params: DeviceTokenRotateParams): Promise<DeviceTokenRotateResult> {
+    return this.request('device.token.rotate', params);
+  }
+
+  async deviceTokenRevoke(params: { deviceId: string; role: string }): Promise<Record<string, unknown>> {
+    return this.request('device.token.revoke', params);
+  }
+
+  async webLoginStart(params: { force?: boolean; timeoutMs?: number } = {}): Promise<Record<string, unknown>> {
+    return this.request('web.login.start', params);
+  }
+
+  async webLoginWait(params: { timeoutMs?: number } = {}): Promise<Record<string, unknown>> {
+    return this.request('web.login.wait', params);
+  }
+
+  async channelsLogout(channel: string): Promise<Record<string, unknown>> {
+    return this.request('channels.logout', { channel });
+  }
+
+  async cronStatus(): Promise<CronStatusResult> {
+    return this.request('cron.status', {});
+  }
+
+  async cronList(params: Record<string, unknown> = {}): Promise<CronListResult> {
+    return this.request('cron.list', params);
+  }
+
+  async cronRuns(params: Record<string, unknown> = {}): Promise<CronRunsResult> {
+    return this.request('cron.runs', params);
+  }
+
+  on(eventName: GatewayEventName, handler: (event: GatewayEvent) => void): () => void {
     const bucket = this.eventHandlers.get(eventName) ?? new Set<(event: GatewayEvent) => void>();
     bucket.add(handler);
     this.eventHandlers.set(eventName, bucket);
@@ -597,11 +754,13 @@ export function normalizeWebSocketUrl(url: string): string {
 
 export function dedupeScopes(scopes: readonly string[]): string[] {
   const set = new Set(scopes.map((scope) => scope.trim()).filter(Boolean));
-  if (set.has('operator.admin')) {
-    set.add('operator.read');
-    set.add('operator.write');
-  } else if (set.has('operator.write')) {
-    set.add('operator.read');
+  if (set.has(ADMIN_SCOPE)) {
+    set.add(READ_SCOPE);
+    set.add(WRITE_SCOPE);
+    set.add(APPROVALS_SCOPE);
+    set.add(PAIRING_SCOPE);
+  } else if (set.has(WRITE_SCOPE)) {
+    set.add(READ_SCOPE);
   }
   return [...set];
 }
