@@ -236,30 +236,17 @@
       },
       'tools.effective': {
         scope: 'operator.read',
-        description: 'Effective tools for an agent or session.',
+        description: 'Effective tools for an agent/session.',
         schema: {
-          oneOf: [
-            {
-              type: 'object',
-              properties: {
-                agentId: { type: 'string', title: 'Agent ID' },
-              },
-              required: ['agentId'],
-              additionalProperties: false,
-              title: 'By agent',
-            },
-            {
-              type: 'object',
-              properties: {
-                sessionKey: { type: 'string', title: 'Session Key' },
-              },
-              required: ['sessionKey'],
-              additionalProperties: false,
-              title: 'By session',
-            },
-          ],
+          type: 'object',
+          properties: {
+            agentId: { type: 'string', title: 'Agent ID' },
+            sessionKey: { type: 'string', title: 'Session Key' },
+          },
+          required: ['agentId', 'sessionKey'],
+          additionalProperties: false,
         },
-        example: { sessionKey: 'main' },
+        example: { agentId: '', sessionKey: 'main' },
       },
       'skills.status': {
         scope: 'operator.read',
@@ -701,13 +688,13 @@
       });
     }
 
-    function renderScopeCheckboxes(selectedRole, selectedScopes) {
+    function renderScopeCheckboxes(selectedRole, selectedScopes, useRoleDefaults = false) {
       scopeCheckboxes.innerHTML = '';
       const roleDefault = new Set(ROLE_SCOPE_MAP[selectedRole] || []);
       Object.keys(SCOPE_LABELS).forEach((scope) => {
         const wrapper = document.createElement('label');
         wrapper.className = 'checkbox-item';
-        const checked = selectedScopes.includes(scope) || (!selectedScopes.length && roleDefault.has(scope));
+        const checked = selectedScopes.includes(scope) || (useRoleDefaults && roleDefault.has(scope));
         wrapper.innerHTML = `
           <input type="checkbox" value="${scope}" ${checked ? 'checked' : ''} />
           <div>
@@ -725,7 +712,7 @@
 
     function updateScopesForRole(role, preserveManual = false) {
       const current = preserveManual ? getSelectedScopes() : [];
-      renderScopeCheckboxes(role, current);
+      renderScopeCheckboxes(role, current, !preserveManual && current.length === 0);
       persistConnectionFields();
     }
 
@@ -835,7 +822,18 @@
       if (schema.oneOf) {
         const variants = schema.oneOf;
         const variantKey = path.join('.');
-        const inferVariantIndex = () => state.selectedOneOfVariants.get(variantKey) ?? 0;
+        const inferVariantIndex = () => {
+          if (state.selectedOneOfVariants.has(variantKey)) return state.selectedOneOfVariants.get(variantKey);
+          if (value && typeof value === 'object' && !Array.isArray(value)) {
+            const score = variants.map((variant) => {
+              const keys = Object.keys(variant.properties || {});
+              return keys.filter((key) => key in value).length;
+            });
+            const bestScore = Math.max(...score, 0);
+            return bestScore > 0 ? score.indexOf(bestScore) : 0;
+          }
+          return 0;
+        };
         const variantSelect = document.createElement('select');
         variants.forEach((variant, index) => {
           const option = document.createElement('option');
@@ -846,19 +844,25 @@
         variantSelect.value = String(inferVariantIndex());
         const variantMount = document.createElement('div');
         variantMount.style.marginTop = '10px';
-        const warning = document.createElement('div');
-        warning.className = 'small';
-        warning.textContent = 'Switching variant does not rewrite existing JSON automatically. If current params do not match the selected variant, edit the JSON or use reset.';
+
+        const getVariantDefaults = (variant) => {
+          const props = variant.properties || {};
+          const next = {};
+          Object.keys(props).forEach((key) => {
+            if (props[key].default !== undefined) next[key] = deepClone(props[key].default);
+          });
+          return next;
+        };
 
         const renderVariant = () => {
           variantMount.innerHTML = '';
           const variantIndex = Number(variantSelect.value || 0);
           state.selectedOneOfVariants.set(variantKey, variantIndex);
           const variant = variants[variantIndex] || variants[0];
+          const props = variant.properties || {};
           const currentRoot = readParamsTextarea();
           const currentSubtree = path.length ? getByPath(currentRoot, path) : currentRoot;
-          const props = variant.properties || {};
-          const currentObject = currentSubtree && typeof currentSubtree === 'object' && !Array.isArray(currentSubtree) ? currentSubtree : {};
+          const currentObject = currentSubtree && typeof currentSubtree === 'object' && !Array.isArray(currentSubtree) ? currentSubtree : getVariantDefaults(variant);
           if (!Object.keys(props).length) {
             const empty = document.createElement('div');
             empty.className = 'small';
@@ -881,9 +885,19 @@
           variantMount.appendChild(group);
         };
 
-        variantSelect.onchange = renderVariant;
+        variantSelect.onchange = () => {
+          const variantIndex = Number(variantSelect.value || 0);
+          state.selectedOneOfVariants.set(variantKey, variantIndex);
+          const variant = variants[variantIndex] || variants[0];
+          const nextSubtree = getVariantDefaults(variant);
+          const currentRoot = readParamsTextarea();
+          const nextRoot = path.length
+            ? setByPath(currentRoot && typeof currentRoot === 'object' ? currentRoot : {}, path, nextSubtree)
+            : nextSubtree;
+          syncParamsTextarea(nextRoot);
+          renderVariant();
+        };
         container.appendChild(variantSelect);
-        container.appendChild(warning);
         container.appendChild(variantMount);
         renderVariant();
         return container;
@@ -1176,8 +1190,13 @@
       $('clientId').value = localStorage.getItem('ogw.clientId') || 'gateway-client';
       roleSelect.value = localStorage.getItem('ogw.role') || 'operator';
       let storedScopes = [];
-      try { storedScopes = JSON.parse(localStorage.getItem('ogw.scopes') || '[]'); } catch {}
-      renderScopeCheckboxes(roleSelect.value, storedScopes);
+      let hasStoredScopes = false;
+      try {
+        const rawStoredScopes = localStorage.getItem('ogw.scopes');
+        hasStoredScopes = rawStoredScopes != null;
+        storedScopes = JSON.parse(rawStoredScopes || '[]');
+      } catch {}
+      renderScopeCheckboxes(roleSelect.value, storedScopes, !hasStoredScopes);
       selectMethod(localStorage.getItem('ogw.method') || 'health');
     }
 
