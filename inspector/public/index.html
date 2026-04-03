@@ -5,16 +5,67 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>OpenClaw Gateway Inspector</title>
   <style>
-    :root { color-scheme: dark; --bg:#0b1020; --panel:#121933; --muted:#8ea0c7; --text:#ecf2ff; --accent:#6ea8fe; --border:#243055; --good:#2fbf71; --warn:#ffb020; --bad:#ff6b6b; }
-    *{box-sizing:border-box} body{margin:0;font-family:Inter,ui-sans-serif,system-ui,sans-serif;background:var(--bg);color:var(--text)}
-    .app{display:grid;grid-template-columns:360px 1fr;min-height:100vh}.sidebar,.main{padding:16px}.sidebar{border-right:1px solid var(--border);background:#0f1530}.panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:16px}.panel h2{margin:0 0 12px;font-size:16px}.muted{color:var(--muted)}
-    label{display:block;font-size:12px;color:var(--muted);margin:10px 0 6px} input,textarea,select,button{width:100%;border-radius:10px;border:1px solid var(--border);background:#0d1430;color:var(--text);padding:10px 12px;font:inherit}
-    textarea{min-height:120px;resize:vertical}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.actions{display:flex;gap:8px;flex-wrap:wrap}.actions button{width:auto}.btn{cursor:pointer}.btn.primary{background:var(--accent);color:#081120;border-color:transparent;font-weight:600}.btn.ghost{background:transparent}.btn.good{background:var(--good);color:#07150d;border-color:transparent}.btn.warn{background:var(--warn);color:#1b1200;border-color:transparent}
-    .tabs{display:flex;gap:8px;margin-bottom:12px}.tab{padding:8px 12px;border:1px solid var(--border);border-radius:999px;cursor:pointer}.tab.active{background:var(--accent);color:#081120;border-color:transparent}
+    :root {
+      color-scheme: dark;
+      --bg:#0b1020;
+      --panel:#121933;
+      --muted:#8ea0c7;
+      --text:#ecf2ff;
+      --accent:#6ea8fe;
+      --border:#243055;
+      --good:#2fbf71;
+      --warn:#ffb020;
+      --bad:#ff6b6b;
+      --chip:#182347;
+      --input:#0d1430;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Inter,ui-sans-serif,system-ui,sans-serif;background:var(--bg);color:var(--text)}
+    .app{display:grid;grid-template-columns:420px 1fr;min-height:100vh}
+    .sidebar,.main{padding:16px}
+    .sidebar{border-right:1px solid var(--border);background:#0f1530;overflow:auto}
+    .panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:16px}
+    .panel h2{margin:0 0 12px;font-size:16px}
+    .muted{color:var(--muted)}
+    label{display:block;font-size:12px;color:var(--muted);margin:10px 0 6px}
+    input,textarea,select,button{width:100%;border-radius:10px;border:1px solid var(--border);background:var(--input);color:var(--text);padding:10px 12px;font:inherit}
+    textarea{min-height:120px;resize:vertical}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .actions{display:flex;gap:8px;flex-wrap:wrap}
+    .actions button{width:auto}
+    .btn{cursor:pointer}
+    .btn.primary{background:var(--accent);color:#081120;border-color:transparent;font-weight:600}
+    .btn.ghost{background:transparent}
+    .btn.good{background:var(--good);color:#07150d;border-color:transparent}
+    .btn.warn{background:var(--warn);color:#1b1200;border-color:transparent}
+    .tabs{display:flex;gap:8px;margin-bottom:12px}
+    .tab{padding:8px 12px;border:1px solid var(--border);border-radius:999px;cursor:pointer}
+    .tab.active{background:var(--accent);color:#081120;border-color:transparent}
     .log{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;white-space:pre-wrap;word-break:break-word;background:#0a1128;border:1px solid var(--border);border-radius:10px;padding:10px;max-height:70vh;overflow:auto}
-    .list{display:flex;flex-direction:column;gap:10px}.entry{border:1px solid var(--border);border-radius:10px;padding:10px;background:#0d1430}.entry .meta{font-size:12px;color:var(--muted);margin-bottom:6px}
-    .pill{display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid var(--border);font-size:12px;margin-right:6px}.ok{color:var(--good)}.err{color:var(--bad)}
-    @media (max-width: 980px){.app{grid-template-columns:1fr}.sidebar{border-right:none;border-bottom:1px solid var(--border)}}
+    .list{display:flex;flex-direction:column;gap:10px}
+    .entry{border:1px solid var(--border);border-radius:10px;padding:10px;background:#0d1430}
+    .entry .meta{font-size:12px;color:var(--muted);margin-bottom:6px}
+    .ok{color:var(--good)}
+    .err{color:var(--bad)}
+    .checkbox-grid{display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px}
+    .checkbox-item{display:flex;align-items:flex-start;gap:10px;padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--input)}
+    .checkbox-item input{width:auto;margin-top:2px}
+    .checkbox-item strong{display:block;font-size:13px}
+    .checkbox-item span{display:block;font-size:12px;color:var(--muted)}
+    .method-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+    .pill{display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid var(--border);font-size:12px;background:var(--chip)}
+    .form-grid{display:grid;grid-template-columns:1fr;gap:12px;margin-top:12px}
+    .field{border:1px solid var(--border);border-radius:10px;padding:12px;background:var(--input)}
+    .field-header{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+    .field-name{font-weight:600}
+    .required{color:var(--warn);font-size:12px}
+    .field-help{font-size:12px;color:var(--muted);margin-bottom:8px}
+    .field-inline{display:flex;align-items:center;gap:10px}
+    .field-inline input[type="checkbox"]{width:auto}
+    .hidden{display:none}
+    .split{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .small{font-size:12px;color:var(--muted)}
+    @media (max-width: 1100px){.app{grid-template-columns:1fr}.sidebar{border-right:none;border-bottom:1px solid var(--border)}}
   </style>
 </head>
 <body>
@@ -27,9 +78,10 @@
         <label>Gateway Token</label>
         <input id="token" placeholder="optional shared token" />
         <label>Role</label>
-        <input id="role" value="operator" />
-        <label>Scopes (comma separated)</label>
-        <input id="scopes" value="operator.admin,operator.read,operator.write,operator.approvals,operator.pairing" />
+        <select id="role"></select>
+        <label>Scopes</label>
+        <div id="scopeCheckboxes" class="checkbox-grid"></div>
+        <div class="small" id="scopeHint">Scopes are sent exactly as checked.</div>
         <label>Client ID</label>
         <input id="clientId" value="gateway-client" />
         <div class="actions" style="margin-top:12px">
@@ -42,22 +94,15 @@
       <div class="panel">
         <h2>Invoke Method</h2>
         <label>Method</label>
-        <input id="method" value="health" />
+        <select id="method"></select>
+        <div id="methodMeta" class="method-meta"></div>
+        <div id="methodDescription" class="small" style="margin-top:10px"></div>
+        <div id="schemaForm" class="form-grid"></div>
         <label>Params (JSON)</label>
         <textarea id="params">{}</textarea>
         <div class="actions" style="margin-top:12px">
+          <button id="resetBtn" class="btn ghost">Reset Form</button>
           <button id="callBtn" class="btn good">Call</button>
-        </div>
-      </div>
-
-      <div class="panel">
-        <h2>Helpers</h2>
-        <div class="actions">
-          <button class="btn ghost preset" data-method="health" data-params="{}">health</button>
-          <button class="btn ghost preset" data-method="status" data-params="{}">status</button>
-          <button class="btn ghost preset" data-method="sessions.list" data-params='{"limit":10}'>sessions.list</button>
-          <button class="btn ghost preset" data-method="device.pair.list" data-params="{}">device.pair.list</button>
-          <button class="btn ghost preset" data-method="gateway.identity.get" data-params="{}">gateway.identity.get</button>
         </div>
       </div>
     </aside>
@@ -81,12 +126,478 @@
   </div>
 
   <script>
+    const ROLE_SCOPE_MAP = {
+      operator: ['operator.admin', 'operator.read', 'operator.write', 'operator.approvals', 'operator.pairing'],
+      'operator.readonly': ['operator.read'],
+      'operator.writeonly': ['operator.write'],
+      pairing: ['operator.pairing'],
+      approvals: ['operator.approvals'],
+    };
+
+    const SCOPE_LABELS = {
+      'operator.admin': 'Admin',
+      'operator.read': 'Read',
+      'operator.write': 'Write',
+      'operator.approvals': 'Approvals',
+      'operator.pairing': 'Pairing',
+    };
+
+    const METHOD_DEFS = {
+      'health': {
+        scope: 'operator.read',
+        description: 'Basic health snapshot.',
+        schema: { type: 'object', properties: {}, additionalProperties: false },
+        example: {},
+      },
+      'status': {
+        scope: 'operator.read',
+        description: 'General runtime status.',
+        schema: { type: 'object', properties: {}, additionalProperties: false },
+        example: {},
+      },
+      'models.list': {
+        scope: 'operator.read',
+        description: 'Available models and providers.',
+        schema: { type: 'object', properties: {}, additionalProperties: false },
+        example: {},
+      },
+      'channels.status': {
+        scope: 'operator.read',
+        description: 'Channel/plugin status overview.',
+        schema: { type: 'object', properties: {}, additionalProperties: true },
+        example: {},
+      },
+      'channels.logout': {
+        scope: 'operator.admin',
+        description: 'Log out a channel provider.',
+        schema: {
+          type: 'object',
+          properties: {
+            channel: { type: 'string', title: 'Channel', description: 'Provider/channel id to log out.' },
+          },
+          required: ['channel'],
+          additionalProperties: false,
+        },
+        example: { channel: 'discord' },
+      },
+      'gateway.identity.get': {
+        scope: 'operator.read',
+        description: 'Gateway identity and ids.',
+        schema: { type: 'object', properties: {}, additionalProperties: false },
+        example: {},
+      },
+      'system-presence': {
+        scope: 'operator.read',
+        description: 'Current presence snapshot.',
+        schema: { type: 'object', properties: {}, additionalProperties: false },
+        example: {},
+      },
+      'last-heartbeat': {
+        scope: 'operator.read',
+        description: 'Last heartbeat info.',
+        schema: { type: 'object', properties: {}, additionalProperties: false },
+        example: {},
+      },
+      'node.list': {
+        scope: 'operator.read',
+        description: 'List known nodes.',
+        schema: { type: 'object', properties: {}, additionalProperties: false },
+        example: {},
+      },
+      'agent.identity.get': {
+        scope: 'operator.read',
+        description: 'Resolve agent identity metadata.',
+        schema: {
+          type: 'object',
+          properties: {
+            agentId: { type: 'string', title: 'Agent ID' },
+            sessionKey: { type: 'string', title: 'Session Key' },
+          },
+          additionalProperties: false,
+        },
+        example: { agentId: '' },
+      },
+      'tools.catalog': {
+        scope: 'operator.read',
+        description: 'Catalog of tools for an agent.',
+        schema: {
+          type: 'object',
+          properties: {
+            agentId: { type: 'string', title: 'Agent ID' },
+            includePlugins: { type: 'boolean', title: 'Include plugins' },
+          },
+          required: ['agentId'],
+          additionalProperties: false,
+        },
+        example: { agentId: '', includePlugins: true },
+      },
+      'tools.effective': {
+        scope: 'operator.read',
+        description: 'Effective tools for an agent/session.',
+        schema: {
+          type: 'object',
+          properties: {
+            agentId: { type: 'string', title: 'Agent ID' },
+            sessionKey: { type: 'string', title: 'Session Key' },
+          },
+          required: ['agentId', 'sessionKey'],
+          additionalProperties: false,
+        },
+        example: { agentId: '', sessionKey: 'main' },
+      },
+      'skills.status': {
+        scope: 'operator.read',
+        description: 'Installed skill status.',
+        schema: {
+          oneOf: [
+            { type: 'object', properties: {}, additionalProperties: false },
+            {
+              type: 'object',
+              properties: {
+                agentId: { type: 'string', title: 'Agent ID' },
+              },
+              additionalProperties: false,
+            },
+          ],
+        },
+        example: {},
+      },
+      'agents.list': {
+        scope: 'operator.read',
+        description: 'List configured agents.',
+        schema: { type: 'object', properties: {}, additionalProperties: false },
+        example: {},
+      },
+      'logs.tail': {
+        scope: 'operator.read',
+        description: 'Tail gateway logs.',
+        schema: {
+          type: 'object',
+          properties: {
+            cursor: { type: 'integer', title: 'Cursor' },
+            limit: { type: 'integer', title: 'Limit' },
+            maxBytes: { type: 'integer', title: 'Max Bytes' },
+          },
+          additionalProperties: false,
+        },
+        example: { limit: 100 },
+      },
+      'config.get': {
+        scope: 'operator.read',
+        description: 'Read resolved config.',
+        schema: { type: 'object', properties: {}, additionalProperties: false },
+        example: {},
+      },
+      'config.schema': {
+        scope: 'operator.read',
+        description: 'Read config schema.',
+        schema: { type: 'object', properties: {}, additionalProperties: false },
+        example: {},
+      },
+      'chat.history': {
+        scope: 'operator.read',
+        description: 'Fetch recent transcript items.',
+        schema: {
+          type: 'object',
+          properties: {
+            sessionKey: { type: 'string', title: 'Session Key' },
+            limit: { type: 'integer', title: 'Limit' },
+          },
+          required: ['sessionKey'],
+          additionalProperties: false,
+        },
+        example: { sessionKey: 'main', limit: 20 },
+      },
+      'chat.send': {
+        scope: 'operator.write',
+        description: 'Send a chat message.',
+        schema: {
+          type: 'object',
+          properties: {
+            sessionKey: { type: 'string', title: 'Session Key' },
+            message: { type: 'string', title: 'Message' },
+            deliver: { type: 'boolean', title: 'Deliver externally' },
+            idempotencyKey: { type: 'string', title: 'Idempotency Key' },
+          },
+          required: ['sessionKey', 'message'],
+          additionalProperties: false,
+        },
+        example: { sessionKey: 'main', message: 'hello' },
+      },
+      'chat.abort': {
+        scope: 'operator.write',
+        description: 'Abort an in-flight run.',
+        schema: {
+          type: 'object',
+          properties: {
+            sessionKey: { type: 'string', title: 'Session Key' },
+            runId: { type: 'string', title: 'Run ID' },
+          },
+          required: ['sessionKey'],
+          additionalProperties: false,
+        },
+        example: { sessionKey: 'main' },
+      },
+      'chat.inject': {
+        scope: 'operator.admin',
+        description: 'Admin-only raw chat injection.',
+        schema: {
+          type: 'object',
+          properties: {
+            sessionKey: { type: 'string', title: 'Session Key' },
+            message: { type: 'string', title: 'Message' },
+          },
+          required: ['sessionKey', 'message'],
+          additionalProperties: false,
+        },
+        example: { sessionKey: 'main', message: 'hello' },
+      },
+      'sessions.list': {
+        scope: 'operator.read',
+        description: 'List sessions with filters.',
+        schema: {
+          type: 'object',
+          properties: {
+            includeGlobal: { type: 'boolean', title: 'Include global' },
+            includeUnknown: { type: 'boolean', title: 'Include unknown' },
+            activeMinutes: { type: 'integer', title: 'Active Minutes' },
+            limit: { type: 'integer', title: 'Limit' },
+          },
+          additionalProperties: false,
+        },
+        example: { limit: 10 },
+      },
+      'sessions.get': {
+        scope: 'operator.read',
+        description: 'Fetch a single session.',
+        schema: {
+          type: 'object',
+          properties: {
+            key: { type: 'string', title: 'Key' },
+            limit: { type: 'integer', title: 'Limit' },
+          },
+          required: ['key'],
+          additionalProperties: false,
+        },
+        example: { key: 'main', limit: 50 },
+      },
+      'sessions.create': {
+        scope: 'operator.write',
+        description: 'Create a new session.',
+        schema: {
+          type: 'object',
+          properties: {
+            key: { type: 'string', title: 'Key' },
+            label: { type: 'string', title: 'Label' },
+          },
+          required: ['key'],
+          additionalProperties: false,
+        },
+        example: { key: 'demo', label: 'Demo session' },
+      },
+      'sessions.patch': {
+        scope: 'operator.admin',
+        description: 'Patch session settings.',
+        schema: {
+          type: 'object',
+          properties: {
+            key: { type: 'string', title: 'Key' },
+            model: { type: 'string', title: 'Model' },
+            thinkingLevel: { type: 'string', title: 'Thinking Level' },
+            fastMode: { type: 'boolean', title: 'Fast Mode' },
+            verboseLevel: { type: 'string', title: 'Verbose Level' },
+            reasoningLevel: { type: 'string', title: 'Reasoning Level' },
+          },
+          required: ['key'],
+          additionalProperties: false,
+        },
+        example: { key: 'main', model: '', thinkingLevel: 'medium' },
+      },
+      'sessions.delete': {
+        scope: 'operator.admin',
+        description: 'Delete a session.',
+        schema: {
+          type: 'object',
+          properties: {
+            key: { type: 'string', title: 'Key' },
+            deleteTranscript: { type: 'boolean', title: 'Delete Transcript' },
+            emitLifecycleHooks: { type: 'boolean', title: 'Emit Lifecycle Hooks' },
+          },
+          required: ['key'],
+          additionalProperties: false,
+        },
+        example: { key: 'demo', deleteTranscript: false },
+      },
+      'sessions.reset': {
+        scope: 'operator.admin',
+        description: 'Reset a session.',
+        schema: {
+          type: 'object',
+          properties: {
+            key: { type: 'string', title: 'Key' },
+          },
+          required: ['key'],
+          additionalProperties: false,
+        },
+        example: { key: 'main' },
+      },
+      'sessions.compact': {
+        scope: 'operator.admin',
+        description: 'Compact a session transcript.',
+        schema: {
+          type: 'object',
+          properties: {
+            key: { type: 'string', title: 'Key' },
+          },
+          required: ['key'],
+          additionalProperties: false,
+        },
+        example: { key: 'main' },
+      },
+      'sessions.usage': {
+        scope: 'operator.read',
+        description: 'Session usage summary.',
+        schema: { type: 'object', properties: {}, additionalProperties: true },
+        example: {},
+      },
+      'sessions.usage.timeseries': {
+        scope: 'operator.read',
+        description: 'Session usage over time.',
+        schema: { type: 'object', properties: {}, additionalProperties: true },
+        example: {},
+      },
+      'sessions.usage.logs': {
+        scope: 'operator.read',
+        description: 'Session usage logs.',
+        schema: { type: 'object', properties: {}, additionalProperties: true },
+        example: {},
+      },
+      'device.pair.list': {
+        scope: 'operator.pairing',
+        description: 'List pending and paired devices.',
+        schema: { type: 'object', properties: {}, additionalProperties: false },
+        example: {},
+      },
+      'device.pair.approve': {
+        scope: 'operator.pairing',
+        description: 'Approve a pending device pair request.',
+        schema: {
+          type: 'object',
+          properties: {
+            requestId: { type: 'string', title: 'Request ID' },
+          },
+          required: ['requestId'],
+          additionalProperties: false,
+        },
+        example: { requestId: '' },
+      },
+      'device.pair.reject': {
+        scope: 'operator.pairing',
+        description: 'Reject a pending device pair request.',
+        schema: {
+          type: 'object',
+          properties: {
+            requestId: { type: 'string', title: 'Request ID' },
+          },
+          required: ['requestId'],
+          additionalProperties: false,
+        },
+        example: { requestId: '' },
+      },
+      'device.token.rotate': {
+        scope: 'operator.pairing',
+        description: 'Rotate a device token.',
+        schema: {
+          type: 'object',
+          properties: {
+            deviceId: { type: 'string', title: 'Device ID' },
+            role: { type: 'string', title: 'Role' },
+            scopes: { type: 'array', title: 'Scopes', items: { type: 'string' } },
+          },
+          required: ['deviceId', 'role'],
+          additionalProperties: false,
+        },
+        example: { deviceId: '', role: 'operator', scopes: ['operator.read'] },
+      },
+      'device.token.revoke': {
+        scope: 'operator.pairing',
+        description: 'Revoke a stored device token.',
+        schema: {
+          type: 'object',
+          properties: {
+            deviceId: { type: 'string', title: 'Device ID' },
+            role: { type: 'string', title: 'Role' },
+          },
+          required: ['deviceId', 'role'],
+          additionalProperties: false,
+        },
+        example: { deviceId: '', role: 'operator' },
+      },
+      'web.login.start': {
+        scope: 'operator.admin',
+        description: 'Start a browser login flow.',
+        schema: {
+          type: 'object',
+          properties: {
+            force: { type: 'boolean', title: 'Force' },
+            timeoutMs: { type: 'integer', title: 'Timeout (ms)' },
+          },
+          additionalProperties: false,
+        },
+        example: { force: false, timeoutMs: 120000 },
+      },
+      'web.login.wait': {
+        scope: 'operator.admin',
+        description: 'Wait for the browser login flow.',
+        schema: {
+          type: 'object',
+          properties: {
+            timeoutMs: { type: 'integer', title: 'Timeout (ms)' },
+          },
+          additionalProperties: false,
+        },
+        example: { timeoutMs: 120000 },
+      },
+      'cron.status': {
+        scope: 'operator.read',
+        description: 'Cron runtime status.',
+        schema: { type: 'object', properties: {}, additionalProperties: false },
+        example: {},
+      },
+      'cron.list': {
+        scope: 'operator.read',
+        description: 'List cron jobs.',
+        schema: { type: 'object', properties: {}, additionalProperties: true },
+        example: {},
+      },
+      'cron.runs': {
+        scope: 'operator.read',
+        description: 'List recent cron runs.',
+        schema: { type: 'object', properties: {}, additionalProperties: true },
+        example: {},
+      },
+    };
+
     const $ = (id) => document.getElementById(id);
-    const state = { ws: null, connected: false };
+    const state = {
+      ws: null,
+      connected: false,
+      selectedMethod: null,
+      suppressParamsUpdate: false,
+      activeSchema: null,
+    };
+
     const statusEl = $('status');
     const responsesList = $('responsesList');
     const eventsList = $('eventsList');
     const trafficLog = $('trafficLog');
+    const roleSelect = $('role');
+    const scopeCheckboxes = $('scopeCheckboxes');
+    const methodSelect = $('method');
+    const schemaForm = $('schemaForm');
+    const paramsEl = $('params');
+    const methodMeta = $('methodMeta');
+    const methodDescription = $('methodDescription');
 
     function setStatus(text, kind='') {
       statusEl.textContent = text;
@@ -96,7 +607,7 @@
     function addEntry(container, title, payload, meta = '') {
       const div = document.createElement('div');
       div.className = 'entry';
-      div.innerHTML = `<div class="meta">${meta}</div><div style="font-weight:600;margin-bottom:8px">${title}</div><div class="log">${escapeHtml(JSON.stringify(payload, null, 2))}</div>`;
+      div.innerHTML = `<div class="meta">${meta}</div><div style="font-weight:600;margin-bottom:8px">${escapeHtml(title)}</div><div class="log">${escapeHtml(JSON.stringify(payload, null, 2))}</div>`;
       container.prepend(div);
     }
 
@@ -105,7 +616,316 @@
     }
 
     function escapeHtml(s) {
-      return s.replace(/[&<>]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+      return String(s).replace(/[&<>]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+    }
+
+    function deepClone(value) {
+      return value == null ? value : JSON.parse(JSON.stringify(value));
+    }
+
+    function humanize(name) {
+      return name.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[._-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+    }
+
+    function setByPath(target, path, value) {
+      if (!path.length) return value;
+      const [head, ...rest] = path;
+      const base = target && typeof target === 'object' ? target : typeof head === 'number' ? [] : {};
+      const clone = Array.isArray(base) ? [...base] : { ...base };
+      clone[head] = setByPath(clone[head], rest, value);
+      return clone;
+    }
+
+    function deleteByPath(target, path) {
+      if (!path.length) return target;
+      const [head, ...rest] = path;
+      if (target == null || typeof target !== 'object') return target;
+      if (!rest.length) {
+        if (Array.isArray(target)) {
+          const clone = [...target];
+          clone.splice(head, 1);
+          return clone;
+        }
+        const clone = { ...target };
+        delete clone[head];
+        return clone;
+      }
+      if (!(head in target)) return target;
+      const nextValue = deleteByPath(target[head], rest);
+      const clone = Array.isArray(target) ? [...target] : { ...target };
+      if (nextValue === undefined && !Array.isArray(clone)) delete clone[head];
+      else clone[head] = nextValue;
+      return clone;
+    }
+
+    function normalizeInteger(value) {
+      if (value === '' || value == null) return undefined;
+      const parsed = Number.parseInt(value, 10);
+      return Number.isNaN(parsed) ? undefined : parsed;
+    }
+
+    function normalizeNumber(value) {
+      if (value === '' || value == null) return undefined;
+      const parsed = Number(value);
+      return Number.isNaN(parsed) ? undefined : parsed;
+    }
+
+    function createRoleOptions() {
+      Object.keys(ROLE_SCOPE_MAP).forEach((role) => {
+        const option = document.createElement('option');
+        option.value = role;
+        option.textContent = role;
+        roleSelect.appendChild(option);
+      });
+    }
+
+    function renderScopeCheckboxes(selectedRole, selectedScopes) {
+      scopeCheckboxes.innerHTML = '';
+      const roleDefault = new Set(ROLE_SCOPE_MAP[selectedRole] || []);
+      Object.keys(SCOPE_LABELS).forEach((scope) => {
+        const wrapper = document.createElement('label');
+        wrapper.className = 'checkbox-item';
+        const checked = selectedScopes.includes(scope) || (!selectedScopes.length && roleDefault.has(scope));
+        wrapper.innerHTML = `
+          <input type="checkbox" value="${scope}" ${checked ? 'checked' : ''} />
+          <div>
+            <strong>${escapeHtml(scope)}</strong>
+            <span>${escapeHtml(SCOPE_LABELS[scope])}</span>
+          </div>
+        `;
+        scopeCheckboxes.appendChild(wrapper);
+      });
+    }
+
+    function getSelectedScopes() {
+      return [...scopeCheckboxes.querySelectorAll('input[type="checkbox"]:checked')].map((el) => el.value);
+    }
+
+    function updateScopesForRole(role, preserveManual = false) {
+      const current = preserveManual ? getSelectedScopes() : [];
+      renderScopeCheckboxes(role, current);
+      persistConnectionFields();
+    }
+
+    function createMethodOptions() {
+      const methods = Object.keys(METHOD_DEFS).sort();
+      methods.forEach((method) => {
+        const option = document.createElement('option');
+        option.value = method;
+        option.textContent = method;
+        methodSelect.appendChild(option);
+      });
+    }
+
+    function getDefaultParams(method) {
+      const def = METHOD_DEFS[method];
+      if (!def) return {};
+      return deepClone(def.example ?? {});
+    }
+
+    function renderMethodMeta(method) {
+      methodMeta.innerHTML = '';
+      const def = METHOD_DEFS[method];
+      if (!def) return;
+      const scopePill = document.createElement('span');
+      scopePill.className = 'pill';
+      scopePill.textContent = `scope: ${def.scope ?? 'unknown'}`;
+      methodMeta.appendChild(scopePill);
+      const formPill = document.createElement('span');
+      formPill.className = 'pill';
+      formPill.textContent = def.schema ? 'schema form' : 'json only';
+      methodMeta.appendChild(formPill);
+      methodDescription.textContent = def.description || '';
+    }
+
+    function syncParamsTextarea(next) {
+      state.suppressParamsUpdate = true;
+      paramsEl.value = JSON.stringify(next ?? {}, null, 2);
+      state.suppressParamsUpdate = false;
+    }
+
+    function readParamsTextarea() {
+      try {
+        return JSON.parse(paramsEl.value || '{}');
+      } catch {
+        return null;
+      }
+    }
+
+    function createInputForSchema({ schema, value, path, required, label }) {
+      const container = document.createElement('div');
+      container.className = 'field';
+      const header = document.createElement('div');
+      header.className = 'field-header';
+      header.innerHTML = `<span class="field-name">${escapeHtml(label)}</span>${required ? '<span class="required">required</span>' : ''}<span class="pill">${escapeHtml(schema.type || (schema.enum ? 'enum' : schema.oneOf ? 'oneOf' : 'value'))}</span>`;
+      container.appendChild(header);
+      if (schema.description) {
+        const help = document.createElement('div');
+        help.className = 'field-help';
+        help.textContent = schema.description;
+        container.appendChild(help);
+      }
+
+      const emit = (nextValue) => {
+        let params = readParamsTextarea();
+        if (params == null) params = {};
+        if (nextValue === undefined && !required) params = deleteByPath(params, path);
+        else params = setByPath(params, path, nextValue);
+        syncParamsTextarea(params);
+      };
+
+      if (schema.enum) {
+        const select = document.createElement('select');
+        const empty = document.createElement('option');
+        empty.value = '';
+        empty.textContent = required ? 'Select…' : '— optional —';
+        select.appendChild(empty);
+        schema.enum.forEach((optionValue) => {
+          const option = document.createElement('option');
+          option.value = String(optionValue);
+          option.textContent = String(optionValue);
+          if (value === optionValue) option.selected = true;
+          select.appendChild(option);
+        });
+        select.onchange = () => emit(select.value === '' ? undefined : select.value);
+        container.appendChild(select);
+        return container;
+      }
+
+      if (schema.oneOf) {
+        const variantSelect = document.createElement('select');
+        const variants = schema.oneOf;
+        variants.forEach((variant, index) => {
+          const option = document.createElement('option');
+          option.value = String(index);
+          option.textContent = variant.title || `Variant ${index + 1}`;
+          variantSelect.appendChild(option);
+        });
+        const variantMount = document.createElement('div');
+        variantMount.style.marginTop = '10px';
+        const renderVariant = () => {
+          variantMount.innerHTML = '';
+          const variant = variants[Number(variantSelect.value)] || variants[0];
+          variantMount.appendChild(createInputForSchema({ schema: variant, value, path, required, label: variant.title || label }));
+        };
+        variantSelect.onchange = renderVariant;
+        container.appendChild(variantSelect);
+        container.appendChild(variantMount);
+        renderVariant();
+        return container;
+      }
+
+      if (schema.type === 'boolean') {
+        const wrapper = document.createElement('label');
+        wrapper.className = 'field-inline';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = Boolean(value);
+        checkbox.onchange = () => emit(checkbox.checked);
+        wrapper.appendChild(checkbox);
+        const text = document.createElement('span');
+        text.textContent = label;
+        wrapper.appendChild(text);
+        container.appendChild(wrapper);
+        return container;
+      }
+
+      if (schema.type === 'integer' || schema.type === 'number') {
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.value = value ?? '';
+        input.placeholder = schema.type;
+        input.oninput = () => emit(schema.type === 'integer' ? normalizeInteger(input.value) : normalizeNumber(input.value));
+        container.appendChild(input);
+        return container;
+      }
+
+      if (schema.type === 'array') {
+        const textarea = document.createElement('textarea');
+        textarea.placeholder = 'One JSON item per line, or a full JSON array';
+        if (Array.isArray(value)) textarea.value = JSON.stringify(value, null, 2);
+        else if (value != null) textarea.value = String(value);
+        textarea.oninput = () => {
+          const raw = textarea.value.trim();
+          if (!raw) return emit(required ? [] : undefined);
+          try {
+            const parsed = JSON.parse(raw);
+            emit(parsed);
+          } catch {
+            // keep editing without mutating params until valid JSON
+          }
+        };
+        container.appendChild(textarea);
+        return container;
+      }
+
+      if (schema.type === 'object' || schema.properties) {
+        const group = document.createElement('div');
+        group.className = 'form-grid';
+        const properties = schema.properties || {};
+        const requiredSet = new Set(schema.required || []);
+        const currentObject = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+        const keys = Object.keys(properties);
+        if (!keys.length) {
+          const empty = document.createElement('div');
+          empty.className = 'small';
+          empty.textContent = 'No params required.';
+          group.appendChild(empty);
+        }
+        keys.forEach((key) => {
+          group.appendChild(createInputForSchema({
+            schema: properties[key],
+            value: currentObject[key],
+            path: [...path, key],
+            required: requiredSet.has(key),
+            label: properties[key].title || humanize(key),
+          }));
+        });
+        container.appendChild(group);
+        return container;
+      }
+
+      const multiline = schema.format === 'textarea' || /message|text|json/i.test(label);
+      const input = document.createElement(multiline ? 'textarea' : 'input');
+      if (!multiline) input.type = 'text';
+      input.value = value ?? '';
+      input.placeholder = schema.type || 'string';
+      input.oninput = () => emit(input.value === '' ? (required ? '' : undefined) : input.value);
+      container.appendChild(input);
+      return container;
+    }
+
+    function renderSchemaForm(method, params) {
+      schemaForm.innerHTML = '';
+      const def = METHOD_DEFS[method];
+      state.activeSchema = def?.schema || null;
+      if (!def?.schema) return;
+      schemaForm.appendChild(createInputForSchema({
+        schema: def.schema,
+        value: params,
+        path: [],
+        required: true,
+        label: humanize(method),
+      }));
+    }
+
+    function selectMethod(method, options = {}) {
+      const fallbackMethod = METHOD_DEFS[method] ? method : Object.keys(METHOD_DEFS)[0];
+      state.selectedMethod = fallbackMethod;
+      methodSelect.value = fallbackMethod;
+      const nextParams = options.keepCurrent ? (readParamsTextarea() ?? getDefaultParams(fallbackMethod)) : getDefaultParams(fallbackMethod);
+      syncParamsTextarea(nextParams);
+      renderMethodMeta(fallbackMethod);
+      renderSchemaForm(fallbackMethod, nextParams);
+      localStorage.setItem('ogw.method', fallbackMethod);
+    }
+
+    function persistConnectionFields() {
+      localStorage.setItem('ogw.url', $('url').value);
+      localStorage.setItem('ogw.token', $('token').value);
+      localStorage.setItem('ogw.role', roleSelect.value);
+      localStorage.setItem('ogw.clientId', $('clientId').value);
+      localStorage.setItem('ogw.scopes', JSON.stringify(getSelectedScopes()));
     }
 
     function connect() {
@@ -115,13 +935,18 @@
       state.ws = ws;
       ws.onopen = () => {
         appendTraffic('proxy-open', { ok: true });
-        ws.send(JSON.stringify({ type: 'connect', payload: {
-          url: $('url').value,
-          token: $('token').value || undefined,
-          role: $('role').value || 'operator',
-          scopes: $('scopes').value.split(',').map(s => s.trim()).filter(Boolean),
-          client: { id: $('clientId').value || 'gateway-client', version: '0.1.0', platform: 'node', mode: 'backend' },
-        }}));
+        const payload = {
+          type: 'connect',
+          payload: {
+            url: $('url').value,
+            token: $('token').value || undefined,
+            role: roleSelect.value || 'operator',
+            scopes: getSelectedScopes(),
+            client: { id: $('clientId').value || 'gateway-client', version: '0.1.0', platform: 'node', mode: 'backend' },
+          },
+        };
+        appendTraffic('out', payload);
+        ws.send(JSON.stringify(payload));
       };
       ws.onmessage = (event) => {
         const msg = JSON.parse(event.data);
@@ -152,15 +977,29 @@
     $('callBtn').onclick = () => {
       if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return setStatus('Connect first', 'err');
       let params;
-      try { params = JSON.parse($('params').value || '{}'); } catch (e) { return setStatus('Invalid JSON params', 'err'); }
-      const payload = { type: 'call', payload: { method: $('method').value.trim(), params } };
+      try {
+        params = JSON.parse(paramsEl.value || '{}');
+      } catch (e) {
+        return setStatus('Invalid JSON params', 'err');
+      }
+      const payload = { type: 'call', payload: { method: methodSelect.value.trim(), params } };
       appendTraffic('out', payload);
       state.ws.send(JSON.stringify(payload));
     };
 
-    document.querySelectorAll('.preset').forEach((btn) => {
-      btn.onclick = () => { $('method').value = btn.dataset.method; $('params').value = btn.dataset.params; };
+    $('resetBtn').onclick = () => selectMethod(methodSelect.value);
+
+    methodSelect.onchange = () => selectMethod(methodSelect.value);
+    paramsEl.addEventListener('input', () => {
+      if (state.suppressParamsUpdate) return;
+      const parsed = readParamsTextarea();
+      if (parsed == null) return;
+      renderSchemaForm(methodSelect.value, parsed);
     });
+
+    roleSelect.onchange = () => updateScopesForRole(roleSelect.value);
+    scopeCheckboxes.addEventListener('change', persistConnectionFields);
+    ['url', 'token', 'clientId'].forEach((id) => $(id).addEventListener('input', persistConnectionFields));
 
     document.querySelectorAll('.tab').forEach((tab) => {
       tab.onclick = () => {
@@ -171,9 +1010,20 @@
       };
     });
 
-    $('url').value = localStorage.getItem('ogw.url') || 'ws://127.0.0.1:18789';
-    $('token').value = localStorage.getItem('ogw.token') || '';
-    ['url','token','role','scopes','clientId'].forEach((id) => $(id).addEventListener('input', () => localStorage.setItem(`ogw.${id}`, $(id).value)));
+    function init() {
+      createRoleOptions();
+      createMethodOptions();
+      $('url').value = localStorage.getItem('ogw.url') || 'ws://127.0.0.1:18789';
+      $('token').value = localStorage.getItem('ogw.token') || '';
+      $('clientId').value = localStorage.getItem('ogw.clientId') || 'gateway-client';
+      roleSelect.value = localStorage.getItem('ogw.role') || 'operator';
+      let storedScopes = [];
+      try { storedScopes = JSON.parse(localStorage.getItem('ogw.scopes') || '[]'); } catch {}
+      renderScopeCheckboxes(roleSelect.value, storedScopes);
+      selectMethod(localStorage.getItem('ogw.method') || 'health');
+    }
+
+    init();
   </script>
 </body>
 </html>
