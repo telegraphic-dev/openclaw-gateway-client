@@ -105,6 +105,8 @@ Current features:
 - saved connection fields in localStorage
 - quick presets for common methods
 
+Note: the default client id is `gateway-client` because the current Gateway schema validates `client.id` against the canonical client identifier.
+
 This uses a **local proxy server** (`inspector/server/index.mjs`) so the browser UI does not need to implement Gateway auth/device-token handling directly.
 
 ### 2) CLI inspector

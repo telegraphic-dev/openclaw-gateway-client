@@ -31,7 +31,7 @@
         <label>Scopes (comma separated)</label>
         <input id="scopes" value="operator.admin,operator.read,operator.write,operator.approvals,operator.pairing" />
         <label>Client ID</label>
-        <input id="clientId" value="openclaw-gateway-inspector" />
+        <input id="clientId" value="gateway-client" />
         <div class="actions" style="margin-top:12px">
           <button id="connectBtn" class="btn primary">Connect</button>
           <button id="disconnectBtn" class="btn ghost">Disconnect</button>
@@ -120,7 +120,7 @@
           token: $('token').value || undefined,
           role: $('role').value || 'operator',
           scopes: $('scopes').value.split(',').map(s => s.trim()).filter(Boolean),
-          client: { id: $('clientId').value || 'openclaw-gateway-inspector', version: '0.1.0', platform: 'node', mode: 'backend' },
+          client: { id: $('clientId').value || 'gateway-client', version: '0.1.0', platform: 'node', mode: 'backend' },
         }}));
       };
       ws.onmessage = (event) => {
