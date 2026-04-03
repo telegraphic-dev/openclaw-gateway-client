@@ -614,7 +614,23 @@
     function addEntry(container, title, payload, meta = '') {
       const div = document.createElement('div');
       div.className = 'entry';
-      div.innerHTML = `<div class="meta">${meta}</div><div style="font-weight:600;margin-bottom:8px">${escapeHtml(title)}</div><div class="log">${escapeHtml(JSON.stringify(payload, null, 2))}</div>`;
+
+      const metaEl = document.createElement('div');
+      metaEl.className = 'meta';
+      metaEl.textContent = meta;
+
+      const titleEl = document.createElement('div');
+      titleEl.style.fontWeight = '600';
+      titleEl.style.marginBottom = '8px';
+      titleEl.textContent = title;
+
+      const logEl = document.createElement('div');
+      logEl.className = 'log';
+      logEl.textContent = JSON.stringify(payload, null, 2);
+
+      div.appendChild(metaEl);
+      div.appendChild(titleEl);
+      div.appendChild(logEl);
       container.prepend(div);
     }
 
