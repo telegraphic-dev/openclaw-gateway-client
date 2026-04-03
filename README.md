@@ -79,6 +79,52 @@ This lets other projects:
 - Config/logs/cron: `configGet`, `configSchema`, `logsTail`, `cronStatus`, `cronList`, `cronRuns`
 - Channel/system: `channelsStatus`, `channelsLogout`, `systemPresence`, `nodeList`
 
+## Local inspector against a real Gateway
+
+Yes — I added a local inspector CLI specifically for this.
+
+Examples:
+
+```bash
+# one-off call
+OPENCLAW_GATEWAY_URL=ws://127.0.0.1:18789 \
+OPENCLAW_GATEWAY_TOKEN=... \
+npm run inspect -- call health
+
+# call with params
+npm run inspect -- call sessions.list --params '{"limit":5}'
+
+# stream all events
+npm run inspect -- events
+
+# send chat
+npm run inspect -- chat --sessionKey main --message 'hello from inspector'
+
+# interactive REPL
+npm run inspect -- repl
+```
+
+Published binary name:
+
+```bash
+openclaw-gateway-inspector call health
+```
+
+What it gives us:
+- real handshake testing against an actual Gateway
+- event stream inspection
+- ad hoc RPC invocation
+- reproducible debugging for pairing/auth/scope problems
+
+## CI / publish
+
+Included:
+- GitHub Actions CI: typecheck + build + tests
+- GitHub Actions publish workflow for npm releases
+
+Still needed in GitHub repo settings:
+- `NPM_TOKEN` secret for publish workflow
+
 ## Notes
 
 - Scope/method constants are extracted from the current OpenClaw scope model and included directly in the package.

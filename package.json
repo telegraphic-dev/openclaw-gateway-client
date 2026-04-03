@@ -5,8 +5,9 @@
   "main": "./dist/index.js",
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts",
-    "test": "node --test",
+    "test": "npm run build && node --test",
     "typecheck": "tsc --noEmit",
+    "inspect": "npm run build && node scripts/inspector.mjs",
     "clean": "rm -rf dist"
   },
   "keywords": [
@@ -30,12 +31,16 @@
   },
   "files": [
     "dist",
+    "scripts",
     "README.md",
     "LICENSE"
   ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/telegraphic-dev/openclaw-gateway-client.git"
+  },
+  "bin": {
+    "openclaw-gateway-inspector": "./scripts/inspector.mjs"
   },
   "publishConfig": {
     "access": "public"
