@@ -641,6 +641,10 @@
       return clone;
     }
 
+    function getByPath(target, path) {
+      return path.reduce((acc, key) => (acc && typeof acc === 'object' ? acc[key] : undefined), target);
+    }
+
     function deleteByPath(target, path) {
       if (!path.length) return target;
       const [head, ...rest] = path;
@@ -788,7 +792,7 @@
 
       const emit = (nextValue) => {
         let params = readParamsTextarea();
-        if (params == null) params = {};
+        if (params == null || typeof params !== 'object') params = {};
         if (nextValue === undefined && !required) params = deleteByPath(params, path);
         else params = setByPath(params, path, nextValue);
         syncParamsTextarea(params);
@@ -825,8 +829,8 @@
               const keys = Object.keys(variant.properties || {});
               return keys.filter((key) => key in value).length;
             });
-            const best = score.indexOf(Math.max(...score));
-            return best === -1 ? 0 : best;
+            const bestScore = Math.max(...score, 0);
+            return bestScore > 0 ? score.indexOf(bestScore) : 0;
           }
           return 0;
         };
@@ -840,48 +844,56 @@
         variantSelect.value = String(inferVariantIndex());
         const variantMount = document.createElement('div');
         variantMount.style.marginTop = '10px';
+
+        const buildVariantValue = (currentSubtree, variant) => {
+          const props = variant.properties || {};
+          const next = {};
+          if (currentSubtree && typeof currentSubtree === 'object' && !Array.isArray(currentSubtree)) {
+            Object.keys(props).forEach((key) => {
+              if (key in currentSubtree) next[key] = currentSubtree[key];
+            });
+          }
+          return next;
+        };
+
         const renderVariant = () => {
           variantMount.innerHTML = '';
           const variantIndex = Number(variantSelect.value || 0);
           state.selectedOneOfVariants.set(variantKey, variantIndex);
           const variant = variants[variantIndex] || variants[0];
+          const currentRoot = readParamsTextarea();
+          const currentSubtree = path.length ? getByPath(currentRoot, path) : currentRoot;
+          const normalizedValue = buildVariantValue(currentSubtree, variant);
+          if (JSON.stringify(currentSubtree ?? {}) !== JSON.stringify(normalizedValue)) {
+            const nextRoot = path.length ? setByPath(currentRoot && typeof currentRoot === 'object' ? currentRoot : {}, path, normalizedValue) : normalizedValue;
+            syncParamsTextarea(nextRoot);
+          }
+          const props = variant.properties || {};
+          if (!Object.keys(props).length) {
+            const empty = document.createElement('div');
+            empty.className = 'small';
+            empty.textContent = 'No params required for this variant.';
+            variantMount.appendChild(empty);
+            return;
+          }
           const group = document.createElement('div');
           group.className = 'form-grid';
-          const props = variant.properties || {};
           const requiredSet = new Set(variant.required || []);
-          const currentObject = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
           Object.keys(props).forEach((key) => {
             group.appendChild(createInputForSchema({
               schema: props[key],
-              value: currentObject[key],
+              value: normalizedValue[key],
               path: [...path, key],
               required: requiredSet.has(key),
               label: props[key].title || humanize(key),
             }));
           });
-          if (!Object.keys(props).length) {
-            const empty = document.createElement('div');
-            empty.className = 'small';
-            empty.textContent = 'No params required for this variant.';
-            group.appendChild(empty);
-          }
           variantMount.appendChild(group);
         };
+
         variantSelect.onchange = () => {
           const variantIndex = Number(variantSelect.value || 0);
           state.selectedOneOfVariants.set(variantKey, variantIndex);
-          const current = readParamsTextarea();
-          const variant = variants[variantIndex] || variants[0];
-          const allowedKeys = new Set(Object.keys(variant.properties || {}));
-          const currentSubtree = path.length ? path.reduce((acc, key) => (acc && typeof acc === 'object' ? acc[key] : undefined), current) : current;
-          const nextSubtree = {};
-          if (currentSubtree && typeof currentSubtree === 'object' && !Array.isArray(currentSubtree)) {
-            Object.keys(currentSubtree).forEach((key) => {
-              if (allowedKeys.has(key)) nextSubtree[key] = currentSubtree[key];
-            });
-          }
-          const nextRoot = path.length ? setByPath(current && typeof current === 'object' ? current : {}, path, nextSubtree) : nextSubtree;
-          syncParamsTextarea(nextRoot);
           renderVariant();
         };
         container.appendChild(variantSelect);
@@ -916,21 +928,61 @@
       }
 
       if (schema.type === 'array') {
-        const textarea = document.createElement('textarea');
-        textarea.placeholder = 'One JSON item per line, or a full JSON array';
-        if (Array.isArray(value)) textarea.value = JSON.stringify(value, null, 2);
-        else if (value != null) textarea.value = String(value);
-        textarea.oninput = () => {
-          const raw = textarea.value.trim();
-          if (!raw) return emit(required ? [] : undefined);
-          try {
-            const parsed = JSON.parse(raw);
-            emit(parsed);
-          } catch {
-            // keep editing without mutating params until valid JSON
-          }
+        const itemsSchema = schema.items || { type: 'string' };
+        const list = document.createElement('div');
+        list.className = 'form-grid';
+        const values = Array.isArray(value) ? value : [];
+        values.forEach((itemValue, index) => {
+          const itemWrap = document.createElement('div');
+          itemWrap.className = 'field';
+          const itemHeader = document.createElement('div');
+          itemHeader.className = 'field-header';
+          itemHeader.innerHTML = `<span class="field-name">Item ${index + 1}</span>`;
+          itemWrap.appendChild(itemHeader);
+          itemWrap.appendChild(createInputForSchema({
+            schema: itemsSchema,
+            value: itemValue,
+            path: [...path, index],
+            required: true,
+            label: `${label} item`,
+          }));
+          const removeBtn = document.createElement('button');
+          removeBtn.type = 'button';
+          removeBtn.className = 'btn ghost';
+          removeBtn.textContent = 'Remove item';
+          removeBtn.onclick = () => {
+            const current = readParamsTextarea();
+            const currentArray = getByPath(current, path);
+            if (!Array.isArray(currentArray)) return;
+            const nextArray = currentArray.filter((_, i) => i !== index);
+            const nextRoot = setByPath(current && typeof current === 'object' ? current : {}, path, nextArray);
+            syncParamsTextarea(nextRoot);
+            renderSchemaForm(getActiveMethodName(), nextRoot);
+          };
+          itemWrap.appendChild(removeBtn);
+          list.appendChild(itemWrap);
+        });
+        if (!values.length) {
+          const empty = document.createElement('div');
+          empty.className = 'small';
+          empty.textContent = 'No items.';
+          list.appendChild(empty);
+        }
+        const addBtn = document.createElement('button');
+        addBtn.type = 'button';
+        addBtn.className = 'btn ghost';
+        addBtn.textContent = 'Add item';
+        addBtn.onclick = () => {
+          const current = readParamsTextarea();
+          const currentArray = getByPath(current, path);
+          const nextArray = Array.isArray(currentArray) ? [...currentArray] : [];
+          nextArray.push(itemsSchema.type === 'object' ? {} : itemsSchema.type === 'boolean' ? false : '');
+          const nextRoot = setByPath(current && typeof current === 'object' ? current : {}, path, nextArray);
+          syncParamsTextarea(nextRoot);
+          renderSchemaForm(getActiveMethodName(), nextRoot);
         };
-        container.appendChild(textarea);
+        container.appendChild(list);
+        container.appendChild(addBtn);
         return container;
       }
 
@@ -1003,25 +1055,13 @@
       let nextParams;
       if (options.keepCurrent) {
         const currentParams = readParamsTextarea();
-        nextParams = currentParams == null ? paramsEl.value : currentParams;
+        nextParams = currentParams == null ? getDefaultParams(effectiveMethod) : currentParams;
       } else {
         nextParams = getDefaultParams(effectiveMethod);
       }
-      if (typeof nextParams === 'string') {
-        state.suppressParamsUpdate = true;
-        paramsEl.value = nextParams;
-        state.suppressParamsUpdate = false;
-        renderMethodMeta(effectiveMethod);
-        schemaForm.innerHTML = '';
-        const warning = document.createElement('div');
-        warning.className = 'small';
-        warning.textContent = 'Raw JSON is currently invalid. Fix it below to re-enable the schema form.';
-        schemaForm.appendChild(warning);
-      } else {
-        syncParamsTextarea(nextParams);
-        renderMethodMeta(effectiveMethod);
-        renderSchemaForm(effectiveMethod, nextParams);
-      }
+      syncParamsTextarea(nextParams);
+      renderMethodMeta(effectiveMethod);
+      renderSchemaForm(effectiveMethod, nextParams);
       localStorage.setItem('ogw.method', effectiveMethod);
     }
 
@@ -1113,14 +1153,7 @@
     paramsEl.addEventListener('input', () => {
       if (state.suppressParamsUpdate) return;
       const parsed = readParamsTextarea();
-      if (parsed == null) {
-        schemaForm.innerHTML = '';
-        const warning = document.createElement('div');
-        warning.className = 'small';
-        warning.textContent = 'Raw JSON is currently invalid. Fix it below to re-enable the schema form.';
-        schemaForm.appendChild(warning);
-        return;
-      }
+      if (parsed == null) return;
       renderSchemaForm(getActiveMethodName(), parsed);
     });
 
