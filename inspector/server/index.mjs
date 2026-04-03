@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { readFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import WebSocket, { WebSocketServer } from 'ws';
-import { OpenClawGatewayClient } from '../../dist/index.js';
+import { OpenClawGatewayClient, fileStoreAdapter, ROLE_SCOPE_MAP } from '../../dist/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.resolve(__dirname, '../public');
@@ -47,7 +47,14 @@ wss.on('connection', (ws) => {
         state.unsubscribers.forEach((fn) => fn());
         state.unsubscribers = [];
         state.client = new OpenClawGatewayClient({
-          ...msg.payload,
+          url: msg.payload.url,
+          token: msg.payload.token,
+          role: msg.payload.role ?? 'operator',
+          scopes: msg.payload.scopes?.length ? msg.payload.scopes : ROLE_SCOPE_MAP.operator,
+          client: msg.payload.client,
+          locale: msg.payload.locale,
+          userAgent: msg.payload.userAgent,
+          store: fileStoreAdapter(path.resolve(process.cwd(), '.openclaw-gateway-client-inspector')),
           logger: {
             debug: () => {},
             info: () => {},
