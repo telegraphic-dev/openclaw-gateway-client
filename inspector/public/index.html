@@ -730,7 +730,7 @@
       return [...scopeCheckboxes.querySelectorAll('input[type="checkbox"]:checked')].map((el) => el.value);
     }
 
-    function updateScopesForRole(role, preserveManual = false) {
+    function updateScopesForRole(role, preserveManual = true) {
       const current = preserveManual ? getSelectedScopes() : [];
       renderScopeCheckboxes(role, current, !preserveManual && current.length === 0);
       persistConnectionFields();
@@ -1110,7 +1110,7 @@
               if (!branch || typeof branch !== 'object' || Array.isArray(branch)) return;
               if (nextKey in branch || nextKey in properties) {
                 keyInput.value = key;
-                alert(`Key \"${nextKey}\" already exists.`);
+                setStatus(`Key \"${nextKey}\" already exists.`, 'err');
                 return;
               }
               updateWorkingParams((params) => {
@@ -1197,12 +1197,12 @@
 
     function selectMethod(method, options = {}) {
       const isKnown = Boolean(METHOD_DEFS[method]);
-      const effectiveMethod = isKnown ? method : (method || 'health');
+      const effectiveMethod = isKnown ? method : (method || '');
       state.selectedMethod = effectiveMethod;
       methodSelect.value = isKnown ? effectiveMethod : '__custom__';
       customMethodEl.value = isKnown ? '' : effectiveMethod;
       let nextParams;
-      if (options.keepCurrent) {
+      if (options.keepCurrent || !isKnown) {
         nextParams = getWorkingParams();
       } else {
         nextParams = getDefaultParams(effectiveMethod);
@@ -1313,9 +1313,9 @@
     customMethodEl.addEventListener('input', () => {
       if (methodSelect.value !== '__custom__') return;
       const method = customMethodEl.value.trim();
-      state.selectedMethod = method || 'health';
+      state.selectedMethod = method;
       renderMethodMeta(state.selectedMethod);
-      renderSchemaForm(state.selectedMethod, readParamsTextarea() ?? {});
+      renderSchemaForm(state.selectedMethod, state.currentParams);
       localStorage.setItem('ogw.method', state.selectedMethod);
     });
     paramsEl.addEventListener('input', () => {
