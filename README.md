@@ -71,13 +71,39 @@ This lets other projects:
 ## Included known method wrappers
 
 - Core: `health`, `status`, `modelsList`, `gatewayIdentityGet`
-- Agents/tools: `agentsList`, `agentIdentityGet`, `toolsCatalog`, `toolsEffective`, `skillsStatus`
-- Sessions: `listSessions`, `createSession`, `getSession`, `patchSession`, `deleteSession`, `resetSession`, `compactSession`
+- Agents/tools: `agentsList`, `agentIdentityGet`, `toolsCatalog`, `toolsEffective`, `skillsStatus`, `waitForAgentRun`
+- Sessions: `listSessions`, `createSession`, `getSession`, `sendSessionMessage`, `patchSession`, `deleteSession`, `resetSession`, `compactSession`
 - Chat: `chatHistory`, `chatSend`, `chatAbort`, `chatInject`
 - Device pairing: `devicePairList`, `devicePairApprove`, `devicePairReject`, `deviceTokenRotate`, `deviceTokenRevoke`
 - Web/login: `webLoginStart`, `webLoginWait`
 - Config/logs/cron: `configGet`, `configSchema`, `logsTail`, `cronStatus`, `cronList`, `cronRuns`
 - Channel/system: `channelsStatus`, `channelsLogout`, `systemPresence`, `nodeList`
+
+## Example: session-based review flow
+
+```ts
+const created = await client.createSession({
+  key: 'main:repo:pr-123:review',
+  label: 'PR review',
+});
+
+const sent = await client.sendSessionMessage({
+  key: created.key ?? 'main:repo:pr-123:review',
+  message: 'Review this PR',
+});
+
+if (sent.runId) {
+  const wait = await client.waitForAgentRun({ runId: sent.runId, timeoutMs: 30_000 });
+  console.log(wait.status);
+}
+
+const transcript = await client.getSession({
+  key: created.key ?? 'main:repo:pr-123:review',
+  limit: 50,
+});
+
+console.log(transcript.messages);
+```
 
 ## Local inspector against a real Gateway
 
