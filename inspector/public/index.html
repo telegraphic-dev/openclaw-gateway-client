@@ -94,7 +94,10 @@
       <div class="panel">
         <h2>Invoke Method</h2>
         <label>Method</label>
-        <select id="method"></select>
+        <div class="row">
+          <select id="method"></select>
+          <input id="customMethod" placeholder="custom.method.name" />
+        </div>
         <div id="methodMeta" class="method-meta"></div>
         <div id="methodDescription" class="small" style="margin-top:10px"></div>
         <div id="schemaForm" class="form-grid"></div>
@@ -585,6 +588,7 @@
       selectedMethod: null,
       suppressParamsUpdate: false,
       activeSchema: null,
+      selectedOneOfVariants: new Map(),
     };
 
     const statusEl = $('status');
@@ -598,6 +602,7 @@
     const paramsEl = $('params');
     const methodMeta = $('methodMeta');
     const methodDescription = $('methodDescription');
+    const customMethodEl = $('customMethod');
 
     function setStatus(text, kind='') {
       statusEl.textContent = text;
@@ -715,6 +720,10 @@
         option.textContent = method;
         methodSelect.appendChild(option);
       });
+      const custom = document.createElement('option');
+      custom.value = '__custom__';
+      custom.textContent = 'Custom method…';
+      methodSelect.appendChild(custom);
     }
 
     function getDefaultParams(method) {
@@ -726,7 +735,18 @@
     function renderMethodMeta(method) {
       methodMeta.innerHTML = '';
       const def = METHOD_DEFS[method];
-      if (!def) return;
+      if (!def) {
+        const customPill = document.createElement('span');
+        customPill.className = 'pill';
+        customPill.textContent = 'custom method';
+        methodMeta.appendChild(customPill);
+        const jsonOnlyPill = document.createElement('span');
+        jsonOnlyPill.className = 'pill';
+        jsonOnlyPill.textContent = 'json only';
+        methodMeta.appendChild(jsonOnlyPill);
+        methodDescription.textContent = 'Any gateway method not listed in the catalog can still be invoked here with raw JSON params.';
+        return;
+      }
       const scopePill = document.createElement('span');
       scopePill.className = 'pill';
       scopePill.textContent = `scope: ${def.scope ?? 'unknown'}`;
@@ -780,35 +800,88 @@
         empty.value = '';
         empty.textContent = required ? 'Select…' : '— optional —';
         select.appendChild(empty);
-        schema.enum.forEach((optionValue) => {
+        schema.enum.forEach((optionValue, index) => {
           const option = document.createElement('option');
-          option.value = String(optionValue);
+          option.value = String(index);
           option.textContent = String(optionValue);
           if (value === optionValue) option.selected = true;
           select.appendChild(option);
         });
-        select.onchange = () => emit(select.value === '' ? undefined : select.value);
+        select.onchange = () => {
+          if (select.value === '') return emit(undefined);
+          emit(schema.enum[Number(select.value)]);
+        };
         container.appendChild(select);
         return container;
       }
 
       if (schema.oneOf) {
-        const variantSelect = document.createElement('select');
         const variants = schema.oneOf;
+        const variantKey = path.join('.');
+        const inferVariantIndex = () => {
+          if (state.selectedOneOfVariants.has(variantKey)) return state.selectedOneOfVariants.get(variantKey);
+          if (value && typeof value === 'object' && !Array.isArray(value)) {
+            const score = variants.map((variant) => {
+              const keys = Object.keys(variant.properties || {});
+              return keys.filter((key) => key in value).length;
+            });
+            const best = score.indexOf(Math.max(...score));
+            return best === -1 ? 0 : best;
+          }
+          return 0;
+        };
+        const variantSelect = document.createElement('select');
         variants.forEach((variant, index) => {
           const option = document.createElement('option');
           option.value = String(index);
           option.textContent = variant.title || `Variant ${index + 1}`;
           variantSelect.appendChild(option);
         });
+        variantSelect.value = String(inferVariantIndex());
         const variantMount = document.createElement('div');
         variantMount.style.marginTop = '10px';
         const renderVariant = () => {
           variantMount.innerHTML = '';
-          const variant = variants[Number(variantSelect.value)] || variants[0];
-          variantMount.appendChild(createInputForSchema({ schema: variant, value, path, required, label: variant.title || label }));
+          const variantIndex = Number(variantSelect.value || 0);
+          state.selectedOneOfVariants.set(variantKey, variantIndex);
+          const variant = variants[variantIndex] || variants[0];
+          const group = document.createElement('div');
+          group.className = 'form-grid';
+          const props = variant.properties || {};
+          const requiredSet = new Set(variant.required || []);
+          const currentObject = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+          Object.keys(props).forEach((key) => {
+            group.appendChild(createInputForSchema({
+              schema: props[key],
+              value: currentObject[key],
+              path: [...path, key],
+              required: requiredSet.has(key),
+              label: props[key].title || humanize(key),
+            }));
+          });
+          if (!Object.keys(props).length) {
+            const empty = document.createElement('div');
+            empty.className = 'small';
+            empty.textContent = 'No params required for this variant.';
+            group.appendChild(empty);
+          }
+          variantMount.appendChild(group);
         };
-        variantSelect.onchange = renderVariant;
+        variantSelect.onchange = () => {
+          const variantIndex = Number(variantSelect.value || 0);
+          state.selectedOneOfVariants.set(variantKey, variantIndex);
+          const current = readParamsTextarea();
+          const variant = variants[variantIndex] || variants[0];
+          const allowedKeys = new Set(Object.keys(variant.properties || {}));
+          const next = {};
+          if (current && typeof current === 'object' && !Array.isArray(current)) {
+            Object.keys(current).forEach((key) => {
+              if (allowedKeys.has(key)) next[key] = current[key];
+            });
+          }
+          syncParamsTextarea(next);
+          renderVariant();
+        };
         container.appendChild(variantSelect);
         container.appendChild(variantMount);
         renderVariant();
@@ -890,7 +963,7 @@
       if (!multiline) input.type = 'text';
       input.value = value ?? '';
       input.placeholder = schema.type || 'string';
-      input.oninput = () => emit(input.value === '' ? (required ? '' : undefined) : input.value);
+      input.oninput = () => emit(input.value === '' ? undefined : input.value);
       container.appendChild(input);
       return container;
     }
@@ -899,7 +972,13 @@
       schemaForm.innerHTML = '';
       const def = METHOD_DEFS[method];
       state.activeSchema = def?.schema || null;
-      if (!def?.schema) return;
+      if (!def?.schema) {
+        const empty = document.createElement('div');
+        empty.className = 'small';
+        empty.textContent = 'No schema-driven form for this method. Use raw JSON params below.';
+        schemaForm.appendChild(empty);
+        return;
+      }
       schemaForm.appendChild(createInputForSchema({
         schema: def.schema,
         value: params,
@@ -910,14 +989,16 @@
     }
 
     function selectMethod(method, options = {}) {
-      const fallbackMethod = METHOD_DEFS[method] ? method : Object.keys(METHOD_DEFS)[0];
-      state.selectedMethod = fallbackMethod;
-      methodSelect.value = fallbackMethod;
-      const nextParams = options.keepCurrent ? (readParamsTextarea() ?? getDefaultParams(fallbackMethod)) : getDefaultParams(fallbackMethod);
+      const isKnown = Boolean(METHOD_DEFS[method]);
+      const effectiveMethod = isKnown ? method : (method || 'health');
+      state.selectedMethod = effectiveMethod;
+      methodSelect.value = isKnown ? effectiveMethod : '__custom__';
+      customMethodEl.value = isKnown ? '' : effectiveMethod;
+      const nextParams = options.keepCurrent ? (readParamsTextarea() ?? getDefaultParams(effectiveMethod)) : getDefaultParams(effectiveMethod);
       syncParamsTextarea(nextParams);
-      renderMethodMeta(fallbackMethod);
-      renderSchemaForm(fallbackMethod, nextParams);
-      localStorage.setItem('ogw.method', fallbackMethod);
+      renderMethodMeta(effectiveMethod);
+      renderSchemaForm(effectiveMethod, nextParams);
+      localStorage.setItem('ogw.method', effectiveMethod);
     }
 
     function persistConnectionFields() {
@@ -982,14 +1063,30 @@
       } catch (e) {
         return setStatus('Invalid JSON params', 'err');
       }
-      const payload = { type: 'call', payload: { method: methodSelect.value.trim(), params } };
+      const selectedMethod = methodSelect.value === '__custom__' ? customMethodEl.value.trim() : methodSelect.value.trim();
+      if (!selectedMethod) return setStatus('Pick or enter a method first', 'err');
+      const payload = { type: 'call', payload: { method: selectedMethod, params } };
       appendTraffic('out', payload);
       state.ws.send(JSON.stringify(payload));
     };
 
-    $('resetBtn').onclick = () => selectMethod(methodSelect.value);
+    $('resetBtn').onclick = () => {
+      const method = methodSelect.value === '__custom__' ? customMethodEl.value.trim() : methodSelect.value;
+      selectMethod(method);
+    };
 
-    methodSelect.onchange = () => selectMethod(methodSelect.value);
+    methodSelect.onchange = () => {
+      if (methodSelect.value === '__custom__') {
+        selectMethod(customMethodEl.value.trim(), { keepCurrent: true });
+        return;
+      }
+      selectMethod(methodSelect.value);
+    };
+
+    customMethodEl.addEventListener('input', () => {
+      if (methodSelect.value !== '__custom__') return;
+      selectMethod(customMethodEl.value.trim(), { keepCurrent: true });
+    });
     paramsEl.addEventListener('input', () => {
       if (state.suppressParamsUpdate) return;
       const parsed = readParamsTextarea();
