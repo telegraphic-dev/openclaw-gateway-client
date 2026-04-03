@@ -904,17 +904,27 @@
       }
 
       if (schema.type === 'boolean') {
-        const wrapper = document.createElement('label');
-        wrapper.className = 'field-inline';
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.checked = Boolean(value);
-        checkbox.onchange = () => emit(checkbox.checked);
-        wrapper.appendChild(checkbox);
-        const text = document.createElement('span');
-        text.textContent = label;
-        wrapper.appendChild(text);
-        container.appendChild(wrapper);
+        const select = document.createElement('select');
+        const unset = document.createElement('option');
+        unset.value = '';
+        unset.textContent = required ? 'Select…' : '— optional —';
+        select.appendChild(unset);
+        const falseOption = document.createElement('option');
+        falseOption.value = 'false';
+        falseOption.textContent = 'false';
+        select.appendChild(falseOption);
+        const trueOption = document.createElement('option');
+        trueOption.value = 'true';
+        trueOption.textContent = 'true';
+        select.appendChild(trueOption);
+        if (value === true) select.value = 'true';
+        else if (value === false) select.value = 'false';
+        else select.value = '';
+        select.onchange = () => {
+          if (select.value === '') return emit(undefined);
+          emit(select.value === 'true');
+        };
+        container.appendChild(select);
         return container;
       }
 
@@ -1067,13 +1077,13 @@
       let nextParams;
       if (options.keepCurrent) {
         const currentParams = readParamsTextarea();
-        nextParams = currentParams == null ? getDefaultParams(effectiveMethod) : currentParams;
+        nextParams = currentParams == null ? null : currentParams;
       } else {
         nextParams = getDefaultParams(effectiveMethod);
       }
-      syncParamsTextarea(nextParams);
+      if (nextParams != null) syncParamsTextarea(nextParams);
       renderMethodMeta(effectiveMethod);
-      renderSchemaForm(effectiveMethod, nextParams);
+      renderSchemaForm(effectiveMethod, nextParams ?? readParamsTextarea() ?? {});
       localStorage.setItem('ogw.method', effectiveMethod);
     }
 
@@ -1160,7 +1170,11 @@
 
     customMethodEl.addEventListener('input', () => {
       if (methodSelect.value !== '__custom__') return;
-      selectMethod(customMethodEl.value.trim(), { keepCurrent: true });
+      const method = customMethodEl.value.trim();
+      state.selectedMethod = method || 'health';
+      renderMethodMeta(state.selectedMethod);
+      renderSchemaForm(state.selectedMethod, readParamsTextarea() ?? {});
+      localStorage.setItem('ogw.method', state.selectedMethod);
     });
     paramsEl.addEventListener('input', () => {
       if (state.suppressParamsUpdate) return;
