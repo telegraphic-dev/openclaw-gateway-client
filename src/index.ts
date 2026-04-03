@@ -443,7 +443,7 @@ export class OpenClawGatewayClient {
     return this.request('tools.catalog', params);
   }
 
-  async toolsEffective(params: { agentId: string; sessionKey: string }): Promise<ToolsEffectiveResult> {
+  async toolsEffective(params: { agentId?: string; sessionKey?: string }): Promise<ToolsEffectiveResult> {
     return this.request('tools.effective', params);
   }
 

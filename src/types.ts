@@ -270,7 +270,7 @@ export type MethodMap = {
   'node.list': { params: Record<string, never>; result: NodeListResult };
   'agent.identity.get': { params: { agentId?: string; sessionKey?: string }; result: AgentIdentityGetResult };
   'tools.catalog': { params: { agentId: string; includePlugins?: boolean }; result: ToolsCatalogResult };
-  'tools.effective': { params: { agentId: string; sessionKey: string }; result: ToolsEffectiveResult };
+  'tools.effective': { params: { agentId?: string; sessionKey?: string }; result: ToolsEffectiveResult };
   'skills.status': { params: { agentId?: string } | Record<string, never>; result: SkillsStatusResult };
   'agents.list': { params: Record<string, never>; result: AgentsListResult };
   'logs.tail': { params: { cursor?: number; limit?: number; maxBytes?: number }; result: LogsTailResult };

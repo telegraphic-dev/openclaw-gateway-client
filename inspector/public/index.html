@@ -236,17 +236,30 @@
       },
       'tools.effective': {
         scope: 'operator.read',
-        description: 'Effective tools for an agent/session.',
+        description: 'Effective tools for an agent or session.',
         schema: {
-          type: 'object',
-          properties: {
-            agentId: { type: 'string', title: 'Agent ID' },
-            sessionKey: { type: 'string', title: 'Session Key' },
-          },
-          required: ['agentId', 'sessionKey'],
-          additionalProperties: false,
+          oneOf: [
+            {
+              type: 'object',
+              properties: {
+                agentId: { type: 'string', title: 'Agent ID' },
+              },
+              required: ['agentId'],
+              additionalProperties: false,
+              title: 'By agent',
+            },
+            {
+              type: 'object',
+              properties: {
+                sessionKey: { type: 'string', title: 'Session Key' },
+              },
+              required: ['sessionKey'],
+              additionalProperties: false,
+              title: 'By session',
+            },
+          ],
         },
-        example: { agentId: '', sessionKey: 'main' },
+        example: { sessionKey: 'main' },
       },
       'skills.status': {
         scope: 'operator.read',
@@ -822,18 +835,7 @@
       if (schema.oneOf) {
         const variants = schema.oneOf;
         const variantKey = path.join('.');
-        const inferVariantIndex = () => {
-          if (state.selectedOneOfVariants.has(variantKey)) return state.selectedOneOfVariants.get(variantKey);
-          if (value && typeof value === 'object' && !Array.isArray(value)) {
-            const score = variants.map((variant) => {
-              const keys = Object.keys(variant.properties || {});
-              return keys.filter((key) => key in value).length;
-            });
-            const bestScore = Math.max(...score, 0);
-            return bestScore > 0 ? score.indexOf(bestScore) : 0;
-          }
-          return 0;
-        };
+        const inferVariantIndex = () => state.selectedOneOfVariants.get(variantKey) ?? 0;
         const variantSelect = document.createElement('select');
         variants.forEach((variant, index) => {
           const option = document.createElement('option');
@@ -844,17 +846,9 @@
         variantSelect.value = String(inferVariantIndex());
         const variantMount = document.createElement('div');
         variantMount.style.marginTop = '10px';
-
-        const buildVariantValue = (currentSubtree, variant) => {
-          const props = variant.properties || {};
-          const next = {};
-          if (currentSubtree && typeof currentSubtree === 'object' && !Array.isArray(currentSubtree)) {
-            Object.keys(props).forEach((key) => {
-              if (key in currentSubtree) next[key] = currentSubtree[key];
-            });
-          }
-          return next;
-        };
+        const warning = document.createElement('div');
+        warning.className = 'small';
+        warning.textContent = 'Switching variant does not rewrite existing JSON automatically. If current params do not match the selected variant, edit the JSON or use reset.';
 
         const renderVariant = () => {
           variantMount.innerHTML = '';
@@ -863,12 +857,8 @@
           const variant = variants[variantIndex] || variants[0];
           const currentRoot = readParamsTextarea();
           const currentSubtree = path.length ? getByPath(currentRoot, path) : currentRoot;
-          const normalizedValue = buildVariantValue(currentSubtree, variant);
-          if (JSON.stringify(currentSubtree ?? {}) !== JSON.stringify(normalizedValue)) {
-            const nextRoot = path.length ? setByPath(currentRoot && typeof currentRoot === 'object' ? currentRoot : {}, path, normalizedValue) : normalizedValue;
-            syncParamsTextarea(nextRoot);
-          }
           const props = variant.properties || {};
+          const currentObject = currentSubtree && typeof currentSubtree === 'object' && !Array.isArray(currentSubtree) ? currentSubtree : {};
           if (!Object.keys(props).length) {
             const empty = document.createElement('div');
             empty.className = 'small';
@@ -882,7 +872,7 @@
           Object.keys(props).forEach((key) => {
             group.appendChild(createInputForSchema({
               schema: props[key],
-              value: normalizedValue[key],
+              value: currentObject[key],
               path: [...path, key],
               required: requiredSet.has(key),
               label: props[key].title || humanize(key),
@@ -891,12 +881,9 @@
           variantMount.appendChild(group);
         };
 
-        variantSelect.onchange = () => {
-          const variantIndex = Number(variantSelect.value || 0);
-          state.selectedOneOfVariants.set(variantKey, variantIndex);
-          renderVariant();
-        };
+        variantSelect.onchange = renderVariant;
         container.appendChild(variantSelect);
+        container.appendChild(warning);
         container.appendChild(variantMount);
         renderVariant();
         return container;
@@ -976,7 +963,18 @@
           const current = readParamsTextarea();
           const currentArray = getByPath(current, path);
           const nextArray = Array.isArray(currentArray) ? [...currentArray] : [];
-          nextArray.push(itemsSchema.type === 'object' ? {} : itemsSchema.type === 'boolean' ? false : '');
+          const defaultItem = itemsSchema.default !== undefined
+            ? itemsSchema.default
+            : itemsSchema.type === 'object'
+              ? {}
+              : itemsSchema.type === 'boolean'
+                ? false
+                : itemsSchema.type === 'integer' || itemsSchema.type === 'number'
+                  ? 0
+                  : itemsSchema.type === 'array'
+                    ? []
+                    : '';
+          nextArray.push(defaultItem);
           const nextRoot = setByPath(current && typeof current === 'object' ? current : {}, path, nextArray);
           syncParamsTextarea(nextRoot);
           renderSchemaForm(getActiveMethodName(), nextRoot);
