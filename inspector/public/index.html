@@ -822,86 +822,10 @@
       }
 
       if (schema.oneOf) {
-        const variants = schema.oneOf;
-        const variantKey = path.join('.');
-        const inferVariantIndex = () => {
-          if (state.selectedOneOfVariants.has(variantKey)) return state.selectedOneOfVariants.get(variantKey);
-          if (value && typeof value === 'object' && !Array.isArray(value)) {
-            const score = variants.map((variant) => {
-              const keys = Object.keys(variant.properties || {});
-              return keys.filter((key) => key in value).length;
-            });
-            const bestScore = Math.max(...score, 0);
-            return bestScore > 0 ? score.indexOf(bestScore) : 0;
-          }
-          return 0;
-        };
-        const variantSelect = document.createElement('select');
-        variants.forEach((variant, index) => {
-          const option = document.createElement('option');
-          option.value = String(index);
-          option.textContent = variant.title || `Variant ${index + 1}`;
-          variantSelect.appendChild(option);
-        });
-        variantSelect.value = String(inferVariantIndex());
-        const variantMount = document.createElement('div');
-        variantMount.style.marginTop = '10px';
-
-        const getVariantDefaults = (variant) => {
-          const props = variant.properties || {};
-          const next = {};
-          Object.keys(props).forEach((key) => {
-            if (props[key].default !== undefined) next[key] = deepClone(props[key].default);
-          });
-          return next;
-        };
-
-        const renderVariant = () => {
-          variantMount.innerHTML = '';
-          const variantIndex = Number(variantSelect.value || 0);
-          state.selectedOneOfVariants.set(variantKey, variantIndex);
-          const variant = variants[variantIndex] || variants[0];
-          const props = variant.properties || {};
-          const currentRoot = readParamsTextarea();
-          const currentSubtree = path.length ? getByPath(currentRoot, path) : currentRoot;
-          const currentObject = currentSubtree && typeof currentSubtree === 'object' && !Array.isArray(currentSubtree) ? currentSubtree : getVariantDefaults(variant);
-          if (!Object.keys(props).length) {
-            const empty = document.createElement('div');
-            empty.className = 'small';
-            empty.textContent = 'No params required for this variant.';
-            variantMount.appendChild(empty);
-            return;
-          }
-          const group = document.createElement('div');
-          group.className = 'form-grid';
-          const requiredSet = new Set(variant.required || []);
-          Object.keys(props).forEach((key) => {
-            group.appendChild(createInputForSchema({
-              schema: props[key],
-              value: currentObject[key],
-              path: [...path, key],
-              required: requiredSet.has(key),
-              label: props[key].title || humanize(key),
-            }));
-          });
-          variantMount.appendChild(group);
-        };
-
-        variantSelect.onchange = () => {
-          const variantIndex = Number(variantSelect.value || 0);
-          state.selectedOneOfVariants.set(variantKey, variantIndex);
-          const variant = variants[variantIndex] || variants[0];
-          const nextSubtree = getVariantDefaults(variant);
-          const currentRoot = readParamsTextarea();
-          const nextRoot = path.length
-            ? setByPath(currentRoot && typeof currentRoot === 'object' ? currentRoot : {}, path, nextSubtree)
-            : nextSubtree;
-          syncParamsTextarea(nextRoot);
-          renderVariant();
-        };
-        container.appendChild(variantSelect);
-        container.appendChild(variantMount);
-        renderVariant();
+        const note = document.createElement('div');
+        note.className = 'small';
+        note.textContent = 'This schema uses oneOf. Edit params in raw JSON below.';
+        container.appendChild(note);
         return container;
       }
 
@@ -931,72 +855,10 @@
       }
 
       if (schema.type === 'array') {
-        const itemsSchema = schema.items || { type: 'string' };
-        const list = document.createElement('div');
-        list.className = 'form-grid';
-        const values = Array.isArray(value) ? value : [];
-        values.forEach((itemValue, index) => {
-          const itemWrap = document.createElement('div');
-          itemWrap.className = 'field';
-          const itemHeader = document.createElement('div');
-          itemHeader.className = 'field-header';
-          itemHeader.innerHTML = `<span class="field-name">Item ${index + 1}</span>`;
-          itemWrap.appendChild(itemHeader);
-          itemWrap.appendChild(createInputForSchema({
-            schema: itemsSchema,
-            value: itemValue,
-            path: [...path, index],
-            required: true,
-            label: `${label} item`,
-          }));
-          const removeBtn = document.createElement('button');
-          removeBtn.type = 'button';
-          removeBtn.className = 'btn ghost';
-          removeBtn.textContent = 'Remove item';
-          removeBtn.onclick = () => {
-            const current = readParamsTextarea();
-            const currentArray = getByPath(current, path);
-            if (!Array.isArray(currentArray)) return;
-            const nextArray = currentArray.filter((_, i) => i !== index);
-            const nextRoot = setByPath(current && typeof current === 'object' ? current : {}, path, nextArray);
-            syncParamsTextarea(nextRoot);
-            renderSchemaForm(getActiveMethodName(), nextRoot);
-          };
-          itemWrap.appendChild(removeBtn);
-          list.appendChild(itemWrap);
-        });
-        if (!values.length) {
-          const empty = document.createElement('div');
-          empty.className = 'small';
-          empty.textContent = 'No items.';
-          list.appendChild(empty);
-        }
-        const addBtn = document.createElement('button');
-        addBtn.type = 'button';
-        addBtn.className = 'btn ghost';
-        addBtn.textContent = 'Add item';
-        addBtn.onclick = () => {
-          const current = readParamsTextarea();
-          const currentArray = getByPath(current, path);
-          const nextArray = Array.isArray(currentArray) ? [...currentArray] : [];
-          const defaultItem = itemsSchema.default !== undefined
-            ? itemsSchema.default
-            : itemsSchema.type === 'object'
-              ? {}
-              : itemsSchema.type === 'boolean'
-                ? false
-                : itemsSchema.type === 'integer' || itemsSchema.type === 'number'
-                  ? 0
-                  : itemsSchema.type === 'array'
-                    ? []
-                    : '';
-          nextArray.push(defaultItem);
-          const nextRoot = setByPath(current && typeof current === 'object' ? current : {}, path, nextArray);
-          syncParamsTextarea(nextRoot);
-          renderSchemaForm(getActiveMethodName(), nextRoot);
-        };
-        container.appendChild(list);
-        container.appendChild(addBtn);
+        const note = document.createElement('div');
+        note.className = 'small';
+        note.textContent = 'Array params are edited in raw JSON below.';
+        container.appendChild(note);
         return container;
       }
 
@@ -1095,7 +957,7 @@
       state.ws = ws;
       ws.onopen = () => {
         appendTraffic('proxy-open', { ok: true });
-        const scopesRaw = localStorage.getItem('ogw.scopesRaw');
+        const scopesRaw = $('scopesRaw').value;
         let scopes = getSelectedScopes();
         if (scopesRaw && scopesRaw.trim()) {
           try {
