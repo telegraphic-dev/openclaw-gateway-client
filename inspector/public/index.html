@@ -591,6 +591,8 @@
       suppressParamsUpdate: false,
       activeSchema: null,
       selectedOneOfVariants: new Map(),
+      currentParams: {},
+      paramsParseError: null,
     };
 
     const statusEl = $('status');
@@ -781,17 +783,33 @@
     }
 
     function syncParamsTextarea(next) {
+      state.currentParams = deepClone(next ?? {});
+      state.paramsParseError = null;
       state.suppressParamsUpdate = true;
-      paramsEl.value = JSON.stringify(next ?? {}, null, 2);
+      paramsEl.value = JSON.stringify(state.currentParams, null, 2);
       state.suppressParamsUpdate = false;
     }
 
     function readParamsTextarea() {
       try {
-        return JSON.parse(paramsEl.value || '{}');
-      } catch {
+        const parsed = JSON.parse(paramsEl.value || '{}');
+        state.currentParams = parsed && typeof parsed === 'object' ? parsed : {};
+        state.paramsParseError = null;
+        return state.currentParams;
+      } catch (error) {
+        state.paramsParseError = error;
         return null;
       }
+    }
+
+    function getWorkingParams() {
+      return deepClone(state.currentParams ?? {});
+    }
+
+    function updateWorkingParams(mutator) {
+      const next = mutator(getWorkingParams());
+      syncParamsTextarea(next);
+      renderSchemaForm(getActiveMethodName(), state.currentParams);
     }
 
     function inferDefaultForSchema(schema) {
@@ -862,11 +880,10 @@
       }
 
       const emit = (nextValue) => {
-        let params = readParamsTextarea();
-        if (params == null || typeof params !== 'object') params = {};
-        if (nextValue === undefined && !required) params = deleteByPath(params, path);
-        else params = setByPath(params, path, nextValue);
-        syncParamsTextarea(params);
+        updateWorkingParams((params) => {
+          if (nextValue === undefined && !required) return deleteByPath(params, path);
+          return setByPath(params, path, nextValue);
+        });
       };
 
       if (schema.enum) {
@@ -904,34 +921,51 @@
           ? state.selectedOneOfVariants.get(variantKey)
           : matchOneOfVariant(variants, value);
         variantSelect.value = String(inferredIndex);
-        const variantMount = document.createElement('div');
-        variantMount.style.marginTop = '10px';
-
-        const renderVariant = () => {
-          const variantIndex = Number(variantSelect.value || 0);
-          state.selectedOneOfVariants.set(variantKey, variantIndex);
-          const variant = variants[variantIndex] || variants[0];
-          variantMount.innerHTML = '';
-          variantMount.appendChild(createInputForSchema({
-            schema: variant,
-            value,
-            path,
-            required,
-            label,
-          }));
-        };
+        const variant = variants[inferredIndex] || variants[0];
 
         variantSelect.onchange = () => {
           const variantIndex = Number(variantSelect.value || 0);
           state.selectedOneOfVariants.set(variantKey, variantIndex);
-          const variant = variants[variantIndex] || variants[0];
-          emit(inferDefaultForSchema(variant));
-          renderSchemaForm(getActiveMethodName(), readParamsTextarea() ?? {});
+          const nextVariant = variants[variantIndex] || variants[0];
+          emit(inferDefaultForSchema(nextVariant));
         };
 
         container.appendChild(variantSelect);
-        container.appendChild(variantMount);
-        renderVariant();
+        if (variant.description) {
+          const help = document.createElement('div');
+          help.className = 'field-help';
+          help.textContent = variant.description;
+          container.appendChild(help);
+        }
+
+        if (variant.type === 'object' || variant.properties) {
+          const properties = variant.properties || {};
+          const requiredSet = new Set(variant.required || []);
+          const currentObject = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+          const group = document.createElement('div');
+          group.className = 'form-grid';
+          Object.keys(properties).forEach((key) => {
+            group.appendChild(createInputForSchema({
+              schema: properties[key],
+              value: currentObject[key],
+              path: [...path, key],
+              required: requiredSet.has(key),
+              label: properties[key].title || humanize(key),
+            }));
+          });
+          container.appendChild(group);
+        } else {
+          const primitiveField = createInputForSchema({
+            schema: { ...variant, oneOf: undefined },
+            value,
+            path,
+            required,
+            label,
+          });
+          const nestedHeader = primitiveField.querySelector('.field-header');
+          if (nestedHeader) nestedHeader.remove();
+          container.appendChild(primitiveField);
+        }
         return container;
       }
 
@@ -984,13 +1018,12 @@
           removeBtn.className = 'btn ghost';
           removeBtn.textContent = 'Remove item';
           removeBtn.onclick = () => {
-            const current = readParamsTextarea();
-            const currentArray = getByPath(current, path);
-            if (!Array.isArray(currentArray)) return;
-            const nextArray = currentArray.filter((_, i) => i !== index);
-            const nextRoot = setByPath(current && typeof current === 'object' ? current : {}, path, nextArray);
-            syncParamsTextarea(nextRoot);
-            renderSchemaForm(getActiveMethodName(), nextRoot);
+            updateWorkingParams((current) => {
+              const currentArray = getByPath(current, path);
+              if (!Array.isArray(currentArray)) return current;
+              const nextArray = currentArray.filter((_, i) => i !== index);
+              return setByPath(current, path, nextArray);
+            });
           };
           itemWrap.appendChild(removeBtn);
           list.appendChild(itemWrap);
@@ -1006,13 +1039,12 @@
         addBtn.className = 'btn ghost';
         addBtn.textContent = 'Add item';
         addBtn.onclick = () => {
-          const current = readParamsTextarea();
-          const currentArray = getByPath(current, path);
-          const nextArray = Array.isArray(currentArray) ? [...currentArray] : [];
-          nextArray.push(deepClone(inferDefaultForSchema(itemsSchema)));
-          const nextRoot = setByPath(current && typeof current === 'object' ? current : {}, path, nextArray);
-          syncParamsTextarea(nextRoot);
-          renderSchemaForm(getActiveMethodName(), nextRoot);
+          updateWorkingParams((current) => {
+            const currentArray = getByPath(current, path);
+            const nextArray = Array.isArray(currentArray) ? [...currentArray] : [];
+            nextArray.push(deepClone(inferDefaultForSchema(itemsSchema)));
+            return setByPath(current, path, nextArray);
+          });
         };
         container.appendChild(list);
         container.appendChild(addBtn);
@@ -1073,26 +1105,31 @@
             keyInput.onchange = () => {
               const nextKey = keyInput.value.trim();
               if (!nextKey || nextKey === key) return;
-              let params = readParamsTextarea();
-              if (params == null || typeof params !== 'object') params = {};
-              const branch = getByPath(params, path);
-              if (!branch || typeof branch !== 'object' || Array.isArray(branch)) return;
-              const nextBranch = { ...branch };
-              nextBranch[nextKey] = nextBranch[key];
-              delete nextBranch[key];
-              const nextRoot = path.length ? setByPath(params, path, nextBranch) : nextBranch;
-              syncParamsTextarea(nextRoot);
-              renderSchemaForm(getActiveMethodName(), nextRoot);
-            };
-            removeBtn.onclick = () => {
-              const current = readParamsTextarea();
+              const current = getWorkingParams();
               const branch = getByPath(current, path);
               if (!branch || typeof branch !== 'object' || Array.isArray(branch)) return;
-              const nextBranch = { ...branch };
-              delete nextBranch[key];
-              const nextRoot = path.length ? setByPath(current, path, nextBranch) : nextBranch;
-              syncParamsTextarea(nextRoot);
-              renderSchemaForm(getActiveMethodName(), nextRoot);
+              if (nextKey in branch || nextKey in properties) {
+                keyInput.value = key;
+                alert(`Key \"${nextKey}\" already exists.`);
+                return;
+              }
+              updateWorkingParams((params) => {
+                const activeBranch = getByPath(params, path);
+                if (!activeBranch || typeof activeBranch !== 'object' || Array.isArray(activeBranch)) return params;
+                const nextBranch = { ...activeBranch };
+                nextBranch[nextKey] = nextBranch[key];
+                delete nextBranch[key];
+                return path.length ? setByPath(params, path, nextBranch) : nextBranch;
+              });
+            };
+            removeBtn.onclick = () => {
+              updateWorkingParams((current) => {
+                const branch = getByPath(current, path);
+                if (!branch || typeof branch !== 'object' || Array.isArray(branch)) return current;
+                const nextBranch = { ...branch };
+                delete nextBranch[key];
+                return path.length ? setByPath(current, path, nextBranch) : nextBranch;
+              });
             };
 
             row.appendChild(keyInput);
@@ -1116,7 +1153,6 @@
               ...currentObject,
               [nextKey]: deepClone(inferDefaultForSchema(additionalSchema)),
             });
-            renderSchemaForm(getActiveMethodName(), readParamsTextarea() ?? {});
           };
           group.appendChild(addBtn);
         }
@@ -1167,14 +1203,13 @@
       customMethodEl.value = isKnown ? '' : effectiveMethod;
       let nextParams;
       if (options.keepCurrent) {
-        const currentParams = readParamsTextarea();
-        nextParams = currentParams == null ? null : currentParams;
+        nextParams = getWorkingParams();
       } else {
         nextParams = getDefaultParams(effectiveMethod);
       }
-      if (nextParams != null) syncParamsTextarea(nextParams);
+      syncParamsTextarea(nextParams);
       renderMethodMeta(effectiveMethod);
-      renderSchemaForm(effectiveMethod, nextParams ?? readParamsTextarea() ?? {});
+      renderSchemaForm(effectiveMethod, nextParams);
       localStorage.setItem('ogw.method', effectiveMethod);
     }
 
