@@ -909,7 +909,7 @@
 
       if (schema.oneOf) {
         const variants = schema.oneOf;
-        const variantKey = path.join('.') || '$';
+        const variantKey = path.length ? path.join('.') : '$';
         const variantSelect = document.createElement('select');
         variants.forEach((variant, index) => {
           const option = document.createElement('option');
@@ -927,7 +927,12 @@
           const variantIndex = Number(variantSelect.value || 0);
           state.selectedOneOfVariants.set(variantKey, variantIndex);
           const nextVariant = variants[variantIndex] || variants[0];
-          emit(inferDefaultForSchema(nextVariant));
+          const nextValue = inferDefaultForSchema(nextVariant);
+          if (!path.length && (nextValue == null || typeof nextValue !== 'object' || Array.isArray(nextValue))) {
+            setStatus('Root-level oneOf variants must resolve to an object params shape.', 'err');
+            return;
+          }
+          emit(nextValue);
         };
 
         container.appendChild(variantSelect);
@@ -954,6 +959,11 @@
             }));
           });
           container.appendChild(group);
+        } else if (!path.length) {
+          const error = document.createElement('div');
+          error.className = 'small';
+          error.textContent = 'Root-level oneOf schemas must use object variants for params editing.';
+          container.appendChild(error);
         } else {
           const primitiveField = createInputForSchema({
             schema: { ...variant, oneOf: undefined },
